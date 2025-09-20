@@ -134,7 +134,7 @@ python test_app.py
 ## 开发信息
 
 - **版本**：1.0.0
-- **作者**：NJUSE25FALL
+- **作者**：Hanke
 - **Python版本要求**：3.7+
 - **主要依赖**：PIL/Pillow, piexif
 
