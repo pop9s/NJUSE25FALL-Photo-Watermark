@@ -55,7 +55,6 @@ class ExifReader:
             # 尝试从多个可能的EXIF字段获取日期时间
             date_fields = [
                 piexif.ExifIFD.DateTimeOriginal,  # 原始拍摄时间
-                piexif.ExifIFD.DateTime,          # 修改时间  
                 piexif.ImageIFD.DateTime          # 图片时间
             ]
             
@@ -63,10 +62,8 @@ class ExifReader:
             
             # 首先尝试从Exif字段获取
             if "Exif" in exif_data:
-                for field in date_fields[:2]:  # DateTimeOriginal 和 DateTime
-                    if field in exif_data["Exif"]:
-                        date_str = exif_data["Exif"][field].decode('utf-8')
-                        break
+                if piexif.ExifIFD.DateTimeOriginal in exif_data["Exif"]:
+                    date_str = exif_data["Exif"][piexif.ExifIFD.DateTimeOriginal].decode('utf-8')
             
             # 如果Exif中没有，尝试从0th字段获取
             if not date_str and "0th" in exif_data:

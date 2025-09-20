@@ -59,6 +59,7 @@ class PhotoWatermarkApp:
         """处理图片添加水印"""
         
         print(f"开始处理路径: {input_path}")
+        print(f"配置参数: 字体大小={font_size}, 颜色={color}, 位置={position_str}, 透明度={opacity}")
         
         # 验证输入路径
         if not os.path.exists(input_path):
@@ -85,10 +86,11 @@ class PhotoWatermarkApp:
             # 处理每张图片
             success_count = 0
             failed_count = 0
+            total_count = len(image_date_pairs)
             
-            for image_path, date_text in image_date_pairs:
+            for idx, (image_path, date_text) in enumerate(image_date_pairs, 1):
                 try:
-                    print(f"处理图片: {os.path.basename(image_path)}, 日期: {date_text}")
+                    print(f"[{idx}/{total_count}] 处理图片: {os.path.basename(image_path)}, 日期: {date_text}")
                     
                     output_path = self.watermark_processor.process_single_image(
                         image_path=image_path,
@@ -101,15 +103,19 @@ class PhotoWatermarkApp:
                         opacity=opacity
                     )
                     
-                    print(f"  -> 已保存: {os.path.basename(output_path)}")
+                    print(f"  ✅ 已保存: {os.path.basename(output_path)}")
                     success_count += 1
                     
                 except Exception as e:
-                    print(f"  -> 处理失败: {e}")
+                    print(f"  ❌ 处理失败: {e}")
                     failed_count += 1
             
-            print(f"\n处理完成！成功: {success_count}, 失败: {failed_count}")
-            print(f"水印图片保存在: {output_dir}")
+            print(f"\n🎉 处理完成！")
+            print(f"📊 统计: 总计 {total_count} 张图片，成功 {success_count} 张，失败 {failed_count} 张")
+            if success_count > 0:
+                print(f"💾 水印图片保存在: {output_dir}")
+            if failed_count > 0:
+                print(f"⚠️  有 {failed_count} 张图片处理失败，请检查错误信息")
             
         except Exception as e:
             print(f"处理过程中出现错误: {e}")

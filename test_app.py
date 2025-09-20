@@ -33,7 +33,6 @@ def create_test_image_with_exif(output_path: str, width: int = 800, height: int 
     # 设置拍摄时间为2023年12月25日
     date_time = "2023:12:25 10:30:00"
     exif_data["Exif"][piexif.ExifIFD.DateTimeOriginal] = date_time.encode('utf-8')
-    exif_data["Exif"][piexif.ExifIFD.DateTime] = date_time.encode('utf-8')
     exif_data["0th"][piexif.ImageIFD.DateTime] = date_time.encode('utf-8')
     
     # 转换为二进制EXIF数据
