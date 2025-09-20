@@ -79,6 +79,18 @@ def create_test_images():
     image2.save(image_path2, "JPEG", exif=exif_bytes2)
     print(f"测试图片已创建: {image_path2}")
     print(f"EXIF拍摄日期: {date_time2}")
+    
+    # 创建第三个测试图片 - PNG格式（2025年春节）
+    image3 = Image.new('RGB', (400, 300), color='lightcoral')
+    draw3 = ImageDraw.Draw(image3)
+    draw3.ellipse([50, 50, 350, 250], outline='red', width=3)
+    draw3.text((150, 140), "Spring Festival", fill='darkred')
+    
+    # PNG文件不支持EXIF，所以会使用文件修改时间
+    image_path3 = os.path.join(examples_dir, "test_photo_3.png")
+    image3.save(image_path3, "PNG")
+    print(f"测试图片已创建: {image_path3}")
+    print(f"PNG格式：使用文件修改时间作为水印日期")
 
 
 def test_watermark_functionality():

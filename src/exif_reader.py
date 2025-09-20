@@ -13,7 +13,7 @@ class ExifReader:
     """EXIF信息读取器"""
     
     # 支持的图片格式
-    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.tiff', '.tif'}
+    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.tiff', '.tif', '.png'}
     
     def __init__(self):
         pass

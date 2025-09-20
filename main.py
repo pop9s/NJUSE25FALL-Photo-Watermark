@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 照片水印添加工具
 从图片EXIF信息中提取拍摄日期，并在图片上添加日期水印
@@ -9,8 +9,14 @@ import sys
 import argparse
 from typing import List, Tuple, Optional
 
-# 添加src目录到Python路径
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# 添加src目录到Python路径（使用相对路径，适配不同环境）
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_path = os.path.join(current_dir, 'src')
+
+# 添加当前目录和src目录到Python路径
+for path in [current_dir, src_path]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from exif_reader import ExifReader
 from watermark_processor import WatermarkProcessor, WatermarkPosition
