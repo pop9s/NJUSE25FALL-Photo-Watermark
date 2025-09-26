@@ -62,11 +62,24 @@ class PhotoWatermarkApp:
     def process_images(self, input_path: str, font_size: int = 36, 
                       color: str = "#FFFFFF", position_str: str = "bottom_right",
                       font_path: Optional[str] = None, opacity: float = 1.0,
-                      output_format: str = "auto") -> None:
+                      output_format: str = "auto", output_dir: Optional[str] = None,
+                      jpeg_quality: int = 95, naming_rule: str = "suffix",
+                      custom_prefix: str = "wm_", custom_suffix: str = "_watermarked",
+                      resize_mode: str = "none", resize_width: Optional[int] = None,
+                      resize_height: Optional[int] = None, resize_percent: Optional[float] = None) -> None:
         """处理图片添加水印"""
         
         print(f"开始处理路径: {input_path}")
         print(f"配置参数: 字体大小={font_size}, 颜色={color}, 位置={position_str}, 透明度={opacity}, 输出格式={output_format}")
+        
+        if output_dir:
+            print(f"输出目录: {output_dir}")
+        if jpeg_quality != 95:
+            print(f"JPEG质量: {jpeg_quality}")
+        if naming_rule != "suffix":
+            print(f"命名规则: {naming_rule}")
+        if resize_mode != "none":
+            print(f"尺寸调整: {resize_mode}")
         
         # 验证输入路径
         if not os.path.exists(input_path):
@@ -87,7 +100,15 @@ class PhotoWatermarkApp:
             print(f"找到 {len(image_date_pairs)} 个图片文件")
             
             # 创建输出目录
-            output_dir = self.watermark_processor.create_output_directory(input_path)
+            if output_dir:
+                # 使用用户指定的输出目录
+                if not self.watermark_processor.validate_output_directory(input_path, output_dir):
+                    print("错误：不能将文件导出到原文件夹，请选择其他目录")
+                    sys.exit(1)
+                final_output_dir = output_dir
+            else:
+                # 使用默认输出目录
+                final_output_dir = self.watermark_processor.create_output_directory(input_path)
             print(f"输出目录: {output_dir}")
             
             # 处理每张图片
@@ -102,13 +123,21 @@ class PhotoWatermarkApp:
                     output_path = self.watermark_processor.process_single_image(
                         image_path=image_path,
                         date_text=date_text,
-                        output_dir=output_dir,
+                        output_dir=final_output_dir,
                         font_size=font_size,
                         color=color,
                         position=position,
                         font_path=font_path,
                         opacity=opacity,
-                        output_format=output_format
+                        output_format=output_format,
+                        quality=jpeg_quality,
+                        naming_rule=naming_rule,
+                        custom_prefix=custom_prefix,
+                        custom_suffix=custom_suffix,
+                        resize_mode=resize_mode,
+                        resize_width=resize_width,
+                        resize_height=resize_height,
+                        resize_percent=resize_percent
                     )
                     
                     print(f"  ✅ 已保存: {os.path.basename(output_path)}")
@@ -121,7 +150,7 @@ class PhotoWatermarkApp:
             print(f"\n🎉 处理完成！")
             print(f"📊 统计: 总计 {total_count} 张图片，成功 {success_count} 张，失败 {failed_count} 张")
             if success_count > 0:
-                print(f"💾 水印图片保存在: {output_dir}")
+                print(f"💾 水印图片保存在: {final_output_dir}")
             if failed_count > 0:
                 print(f"⚠️  有 {failed_count} 张图片处理失败，请检查错误信息")
             
@@ -197,6 +226,71 @@ def create_parser() -> argparse.ArgumentParser:
         help="输出格式 (auto: 保持原格式, jpeg: JPEG格式, png: PNG格式, 默认: auto)"
     )
     
+    parser.add_argument(
+        "--output-dir", "-od",
+        type=str,
+        default=None,
+        help="输出目录路径 (默认: 在原目录下创建子目录)"
+    )
+    
+    parser.add_argument(
+        "--jpeg-quality", "-jq",
+        type=int,
+        default=95,
+        help="JPEG质量 1-100 (默认: 95)"
+    )
+    
+    parser.add_argument(
+        "--naming-rule", "-nr",
+        type=str,
+        default="suffix",
+        choices=["original", "prefix", "suffix"],
+        help="文件命名规则 (默认: suffix)"
+    )
+    
+    parser.add_argument(
+        "--custom-prefix", "-cp",
+        type=str,
+        default="wm_",
+        help="自定义前缀 (默认: wm_)"
+    )
+    
+    parser.add_argument(
+        "--custom-suffix", "-cs",
+        type=str,
+        default="_watermarked",
+        help="自定义后缀 (默认: _watermarked)"
+    )
+    
+    parser.add_argument(
+        "--resize-mode", "-rm",
+        type=str,
+        default="none",
+        choices=["none", "width", "height", "percent"],
+        help="尺寸调整模式 (默认: none)"
+    )
+    
+    parser.add_argument(
+        "--resize-width", "-rw",
+        type=int,
+        default=800,
+        help="目标宽度像素 (默认: 800)"
+    )
+    
+    parser.add_argument(
+        "--resize-height", "-rh",
+        type=int,
+        default=600,
+        help="目标高度像素 (默认: 600)"
+    )
+    
+    parser.add_argument(
+        "--resize-percent", "-rp",
+        type=float,
+        default=1.0,
+        help="缩放百分比 0.1-3.0 (默认: 1.0)"
+    )
+    
     return parser
 
 
@@ -212,6 +306,14 @@ def main():
     
     if args.font_size <= 0:
         print("错误：字体大小必须大于 0")
+        sys.exit(1)
+    
+    if not (1 <= args.jpeg_quality <= 100):
+        print("错误：JPEG质量必须在 1 到 100 之间")
+        sys.exit(1)
+    
+    if not (0.1 <= args.resize_percent <= 3.0):
+        print("错误：缩放百分比必须在 0.1 到 3.0 之间")
         sys.exit(1)
     
     # 验证颜色格式
@@ -235,7 +337,16 @@ def main():
             position_str=args.position,
             font_path=args.font_path,
             opacity=args.opacity,
-            output_format=args.output_format
+            output_format=args.output_format,
+            output_dir=args.output_dir,
+            jpeg_quality=args.jpeg_quality,
+            naming_rule=args.naming_rule,
+            custom_prefix=args.custom_prefix,
+            custom_suffix=args.custom_suffix,
+            resize_mode=args.resize_mode,
+            resize_width=args.resize_width,
+            resize_height=args.resize_height,
+            resize_percent=args.resize_percent
         )
     except KeyboardInterrupt:
         print("\n用户中断操作")

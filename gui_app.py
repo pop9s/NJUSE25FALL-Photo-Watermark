@@ -68,7 +68,17 @@ class PhotoWatermarkGUI:
             'position': 'bottom_right',
             'font_path': '',
             'opacity': 1.0,
-            'output_format': 'auto'  # 新增输出格式设置
+            'output_format': 'auto',  # 输出格式设置
+            # 新增导出设置
+            'output_dir': '',
+            'jpeg_quality': 95,
+            'naming_rule': 'suffix',
+            'custom_prefix': 'wm_',
+            'custom_suffix': '_watermarked',
+            'resize_mode': 'none',
+            'resize_width': 800,
+            'resize_height': 600,
+            'resize_percent': 1.0
         }
         
         # 创建界面
@@ -188,9 +198,98 @@ class PhotoWatermarkGUI:
         
         settings_frame.columnconfigure(1, weight=1)
         
+        # 导出设置区域
+        export_frame = ttk.LabelFrame(control_frame, text="导出设置", padding="5")
+        export_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # 输出目录
+        ttk.Label(export_frame, text="输出目录:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.output_dir_var = tk.StringVar(value=self.settings['output_dir'])
+        output_dir_frame = ttk.Frame(export_frame)
+        output_dir_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        output_dir_entry = ttk.Entry(output_dir_frame, textvariable=self.output_dir_var, width=15)
+        output_dir_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 2))
+        ttk.Button(output_dir_frame, text="浏览", command=self.select_output_dir, width=8).grid(row=0, column=1)
+        output_dir_frame.columnconfigure(0, weight=1)
+        
+        # 命名规则
+        ttk.Label(export_frame, text="命名规则:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.naming_rule_var = tk.StringVar(value=self.settings['naming_rule'])
+        naming_combo = ttk.Combobox(export_frame, textvariable=self.naming_rule_var,
+                                   values=['original', 'prefix', 'suffix'],
+                                   state="readonly", width=12)
+        naming_combo.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 自定义前缀
+        ttk.Label(export_frame, text="自定义前缀:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        self.custom_prefix_var = tk.StringVar(value=self.settings['custom_prefix'])
+        prefix_entry = ttk.Entry(export_frame, textvariable=self.custom_prefix_var, width=15)
+        prefix_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 自定义后缀
+        ttk.Label(export_frame, text="自定义后缀:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        self.custom_suffix_var = tk.StringVar(value=self.settings['custom_suffix'])
+        suffix_entry = ttk.Entry(export_frame, textvariable=self.custom_suffix_var, width=15)
+        suffix_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # JPEG质量
+        ttk.Label(export_frame, text="JPEG质量:").grid(row=4, column=0, sticky=tk.W, pady=2)
+        self.jpeg_quality_var = tk.IntVar(value=self.settings['jpeg_quality'])
+        quality_scale = ttk.Scale(export_frame, from_=1, to=100, 
+                                 variable=self.jpeg_quality_var, orient=tk.HORIZONTAL)
+        quality_scale.grid(row=4, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # JPEG质量显示
+        self.jpeg_quality_label = ttk.Label(export_frame, text=f"{self.settings['jpeg_quality']}")
+        self.jpeg_quality_label.grid(row=5, column=1, sticky=tk.W, pady=2)
+        quality_scale.configure(command=self.update_jpeg_quality_label)
+        
+        export_frame.columnconfigure(1, weight=1)
+        
+        # 图片尺寸调整区域
+        resize_frame = ttk.LabelFrame(control_frame, text="尺寸调整", padding="5")
+        resize_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # 缩放模式
+        ttk.Label(resize_frame, text="缩放模式:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.resize_mode_var = tk.StringVar(value=self.settings['resize_mode'])
+        resize_mode_combo = ttk.Combobox(resize_frame, textvariable=self.resize_mode_var,
+                                        values=['none', 'width', 'height', 'percent'],
+                                        state="readonly", width=12)
+        resize_mode_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 目标宽度
+        ttk.Label(resize_frame, text="目标宽度:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.resize_width_var = tk.IntVar(value=self.settings['resize_width'])
+        width_spin = ttk.Spinbox(resize_frame, from_=100, to=5000, 
+                                textvariable=self.resize_width_var, width=10)
+        width_spin.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 目标高度
+        ttk.Label(resize_frame, text="目标高度:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        self.resize_height_var = tk.IntVar(value=self.settings['resize_height'])
+        height_spin = ttk.Spinbox(resize_frame, from_=100, to=5000, 
+                                 textvariable=self.resize_height_var, width=10)
+        height_spin.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 缩放百分比
+        ttk.Label(resize_frame, text="缩放百分比:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        self.resize_percent_var = tk.DoubleVar(value=self.settings['resize_percent'])
+        percent_scale = ttk.Scale(resize_frame, from_=0.1, to=3.0, 
+                                 variable=self.resize_percent_var, orient=tk.HORIZONTAL)
+        percent_scale.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 百分比显示
+        self.resize_percent_label = ttk.Label(resize_frame, text=f"{self.settings['resize_percent']:.1f}")
+        self.resize_percent_label.grid(row=4, column=1, sticky=tk.W, pady=2)
+        percent_scale.configure(command=self.update_resize_percent_label)
+        
+        resize_frame.columnconfigure(1, weight=1)
+        
         # 处理按钮区域
         button_frame = ttk.Frame(control_frame)
-        button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        button_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         ttk.Button(button_frame, text="开始处理", 
                   command=self.start_processing, style="Accent.TButton").grid(row=0, column=0, sticky=(tk.W, tk.E))
@@ -252,6 +351,26 @@ class PhotoWatermarkGUI:
     def update_opacity_label(self, value):
         """更新透明度标签"""
         self.opacity_label.config(text=f"{float(value):.1f}")
+    
+    def update_jpeg_quality_label(self, value):
+        """更新JPEG质量标签"""
+        self.jpeg_quality_label.config(text=f"{int(float(value))}")
+    
+    def update_resize_percent_label(self, value):
+        """更新缩放百分比标签"""
+        self.resize_percent_label.config(text=f"{float(value):.1f}")
+    
+    def select_output_dir(self):
+        """选择输出目录"""
+        output_dir = filedialog.askdirectory(title="选择输出目录")
+        if output_dir:
+            # 验证是否与原文件夹相同
+            if self.image_items:
+                first_image_path = self.image_items[0].file_path
+                if not self.watermark_processor.validate_output_directory(first_image_path, output_dir):
+                    messagebox.showerror("错误", "不能将文件导出到原文件夹，请选择其他目录")
+                    return
+            self.output_dir_var.set(output_dir)
     
     def select_images(self):
         """选择图片文件"""
@@ -366,7 +485,17 @@ class PhotoWatermarkGUI:
                 'position': self.position_var.get(),
                 'opacity': self.opacity_var.get(),
                 'output_format': self.output_format_var.get(),
-                'font_path': None  # 暂时不支持自定义字体路径
+                'font_path': None,  # 暂时不支持自定义字体路径
+                # 新增导出设置
+                'output_dir': self.output_dir_var.get(),
+                'jpeg_quality': int(self.jpeg_quality_var.get()),
+                'naming_rule': self.naming_rule_var.get(),
+                'custom_prefix': self.custom_prefix_var.get(),
+                'custom_suffix': self.custom_suffix_var.get(),
+                'resize_mode': self.resize_mode_var.get(),
+                'resize_width': int(self.resize_width_var.get()),
+                'resize_height': int(self.resize_height_var.get()),
+                'resize_percent': float(self.resize_percent_var.get())
             }
         except ValueError as e:
             messagebox.showerror("设置错误", f"设置参数格式错误: {e}")
@@ -382,54 +511,69 @@ class PhotoWatermarkGUI:
         if settings is None:
             return
         
+        # 验证输出目录
+        if not settings['output_dir']:
+            messagebox.showwarning("警告", "请选择输出目录")
+            return
+        
+        # 验证输出目录不能与原文件夹相同
+        first_image_path = self.image_items[0].file_path
+        if not self.watermark_processor.validate_output_directory(first_image_path, settings['output_dir']):
+            messagebox.showerror("错误", "不能将文件导出到原文件夹，请选择其他目录")
+            return
+        
         # 在后台线程中处理图片
         threading.Thread(target=self.process_images_thread, args=(settings,), daemon=True).start()
     
     def process_images_thread(self, settings):
         """在后台线程中处理图片"""
         try:
-            # 创建输出目录
-            if self.image_items:
-                first_image_path = self.image_items[0].file_path
-                output_dir = self.watermark_processor.create_output_directory(
-                    os.path.dirname(first_image_path)
-                )
-                
-                success_count = 0
-                total_count = len(self.image_items)
-                
-                for i, item in enumerate(self.image_items):
-                    try:
-                        # 更新状态
-                        self.root.after(0, lambda idx=i: self.update_item_status(idx, "处理中"))
-                        self.root.after(0, lambda: self.update_status(f"正在处理 {i+1}/{total_count}: {os.path.basename(item.file_path)}"))
-                        
-                        # 处理图片
-                        position = self.get_position_from_string(settings['position'])
-                        output_path = self.watermark_processor.process_single_image(
-                            image_path=item.file_path,
-                            date_text=item.date_text,
-                            output_dir=output_dir,
-                            font_size=settings['font_size'],
-                            color=settings['color'],
-                            position=position,
-                            font_path=settings['font_path'],
-                            opacity=settings['opacity'],
-                            output_format=settings['output_format']
-                        )
-                        
-                        # 更新成功状态
-                        self.root.after(0, lambda idx=i: self.update_item_status(idx, "已完成"))
-                        success_count += 1
-                        
-                    except Exception as e:
-                        # 更新失败状态
-                        self.root.after(0, lambda idx=i, err=str(e): self.update_item_status(idx, f"失败: {err}"))
-                
-                # 完成提示
-                self.root.after(0, lambda: self.update_status(f"处理完成！成功 {success_count}/{total_count} 张，输出目录: {output_dir}"))
-                self.root.after(0, lambda: messagebox.showinfo("完成", f"处理完成！\n成功: {success_count}/{total_count} 张\n输出目录: {output_dir}"))
-                
+            # 使用用户指定的输出目录
+            output_dir = settings['output_dir']
+            
+            success_count = 0
+            total_count = len(self.image_items)
+            
+            for i, item in enumerate(self.image_items):
+                try:
+                    # 更新状态
+                    self.root.after(0, lambda idx=i: self.update_item_status(idx, "处理中"))
+                    self.root.after(0, lambda: self.update_status(f"正在处理 {i+1}/{total_count}: {os.path.basename(item.file_path)}"))
+                    
+                    # 处理图片
+                    position = self.get_position_from_string(settings['position'])
+                    output_path = self.watermark_processor.process_single_image(
+                        image_path=item.file_path,
+                        date_text=item.date_text,
+                        output_dir=output_dir,
+                        font_size=settings['font_size'],
+                        color=settings['color'],
+                        position=position,
+                        font_path=settings['font_path'],
+                        opacity=settings['opacity'],
+                        output_format=settings['output_format'],
+                        quality=settings['jpeg_quality'],
+                        naming_rule=settings['naming_rule'],
+                        custom_prefix=settings['custom_prefix'],
+                        custom_suffix=settings['custom_suffix'],
+                        resize_mode=settings['resize_mode'],
+                        resize_width=settings['resize_width'] if settings['resize_mode'] == 'width' else None,
+                        resize_height=settings['resize_height'] if settings['resize_mode'] == 'height' else None,
+                        resize_percent=settings['resize_percent'] if settings['resize_mode'] == 'percent' else None
+                    )
+                    
+                    # 更新成功状态
+                    self.root.after(0, lambda idx=i: self.update_item_status(idx, "已完成"))
+                    success_count += 1
+                    
+                except Exception as e:
+                    # 更新失败状态
+                    self.root.after(0, lambda idx=i, err=str(e): self.update_item_status(idx, f"失败: {err}"))
+            
+            # 完成提示
+            self.root.after(0, lambda: self.update_status(f"处理完成！成功 {success_count}/{total_count} 张，输出目录: {output_dir}"))
+            self.root.after(0, lambda: messagebox.showinfo("完成", f"处理完成！\n成功: {success_count}/{total_count} 张\n输出目录: {output_dir}"))
+            
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("错误", f"处理过程中出现错误: {e}"))
             self.root.after(0, lambda: self.update_status("处理失败"))

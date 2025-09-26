@@ -7,6 +7,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from typing import Tuple, Optional, Union
 from enum import Enum
+from pathlib import Path
 
 
 class WatermarkPosition(Enum):
@@ -27,6 +28,55 @@ class WatermarkProcessor:
     
     def __init__(self):
         pass
+    
+    def resize_image(self, image: Image.Image, resize_mode: str = "none", 
+                    width: Optional[int] = None, height: Optional[int] = None, 
+                    scale_percent: Optional[float] = None) -> Image.Image:
+        """
+        调整图片尺寸
+        
+        Args:
+            image: 原始图像
+            resize_mode: 缩放模式 ("none", "width", "height", "percent")
+            width: 目标宽度
+            height: 目标高度
+            scale_percent: 缩放百分比 (0.1-5.0)
+            
+        Returns:
+            调整后的图像
+        """
+        if resize_mode == "none":
+            return image
+            
+        original_width, original_height = image.size
+        
+        if resize_mode == "width" and width:
+            # 按宽度缩放，保持宽高比
+            scale_ratio = width / original_width
+            new_height = int(original_height * scale_ratio)
+            new_size = (width, new_height)
+            
+        elif resize_mode == "height" and height:
+            # 按高度缩放，保持宽高比
+            scale_ratio = height / original_height
+            new_width = int(original_width * scale_ratio)
+            new_size = (new_width, height)
+            
+        elif resize_mode == "percent" and scale_percent:
+            # 按百分比缩放
+            new_width = int(original_width * scale_percent)
+            new_height = int(original_height * scale_percent)
+            new_size = (new_width, new_height)
+            
+        else:
+            return image
+        
+        # 使用高质量重采样
+        try:
+            return image.resize(new_size, Image.Resampling.LANCZOS)
+        except AttributeError:
+            # 兼容较旧版本的Pillow
+            return image.resize(new_size, Image.LANCZOS)
     
     def get_text_size(self, text: str, font) -> Tuple[int, int]:
         """获取文本在指定字体下的尺寸"""
@@ -200,9 +250,159 @@ class WatermarkProcessor:
         os.makedirs(output_dir, exist_ok=True)
         return output_dir
     
+    def generate_output_filename(self, original_path: str, naming_rule: str = "suffix",
+                                custom_prefix: str = "wm_", custom_suffix: str = "_watermarked",
+                                output_format: str = "auto") -> str:
+        """
+        生成输出文件名
+        
+        Args:
+            original_path: 原始文件路径
+            naming_rule: 命名规则 ("original", "prefix", "suffix")
+            custom_prefix: 自定义前缀
+            custom_suffix: 自定义后缀
+            output_format: 输出格式
+            
+        Returns:
+            输出文件名
+        """
+        filename = os.path.basename(original_path)
+        name, original_ext = os.path.splitext(filename)
+        
+        # 决定输出扩展名
+        if output_format.lower() == "auto":
+            ext = original_ext
+        elif output_format.lower() == "jpeg":
+            ext = '.jpg'
+        elif output_format.lower() == "png":
+            ext = '.png'
+        else:
+            ext = original_ext
+        
+        # 根据命名规则生成文件名
+        if naming_rule == "original":
+            # 保持原文件名
+            output_filename = name + ext
+        elif naming_rule == "prefix":
+            # 添加前缀
+            output_filename = custom_prefix + name + ext
+        elif naming_rule == "suffix":
+            # 添加后缀
+            output_filename = name + custom_suffix + ext
+        else:
+            # 默认使用后缀
+            output_filename = name + custom_suffix + ext
+        
+        return output_filename
+    
+    def validate_output_directory(self, input_path: str, output_dir: str) -> bool:
+        """
+        验证输出目录是否合法（不能与原文件夹相同）
+        
+        Args:
+            input_path: 输入文件或目录路径
+            output_dir: 输出目录路径
+            
+        Returns:
+            是否合法
+        """
+        try:
+            # 获取输入文件的目录
+            if os.path.isfile(input_path):
+                input_dir = os.path.dirname(os.path.abspath(input_path))
+            else:
+                input_dir = os.path.abspath(input_path)
+            
+            output_dir_abs = os.path.abspath(output_dir)
+            
+            # 比较路径是否相同
+            return os.path.normpath(input_dir) != os.path.normpath(output_dir_abs)
+        except Exception:
+            return True  # 如果无法判断，允许继续
+    
     def save_watermarked_image(self, image: Image.Image, original_path: str, 
-                              output_dir: str, output_format: str = "auto", 
-                              quality: int = 95) -> str:
+                              output_dir: str, output_format: str = "auto",
+                              quality: int = 95, naming_rule: str = "suffix",
+                              custom_prefix: str = "wm_", 
+                              custom_suffix: str = "_watermarked") -> str:
+        """
+        保存带水印的图片
+        
+        Args:
+            image: 带水印的图像对象
+            original_path: 原始文件路径
+            output_dir: 输出目录
+            output_format: 输出格式 ("auto", "jpeg", "png")
+            quality: JPEG质量 (1-100)
+            naming_rule: 命名规则 ("original", "prefix", "suffix")
+            custom_prefix: 自定义前缀
+            custom_suffix: 自定义后缀
+        
+        Returns:
+            输出文件路径
+        """
+        # 生成输出文件名
+        output_filename = self.generate_output_filename(
+            original_path, naming_rule, custom_prefix, custom_suffix, output_format
+        )
+        output_path = os.path.join(output_dir, output_filename)
+        
+        # 确保输出目录存在
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 决定保存格式
+        _, ext = os.path.splitext(output_filename)
+        if ext.lower() in ['.jpg', '.jpeg']:
+            save_format = 'JPEG'
+        elif ext.lower() == '.png':
+            save_format = 'PNG'
+        elif ext.lower() in ['.tiff', '.tif']:
+            save_format = 'TIFF'
+        elif ext.lower() == '.bmp':
+            save_format = 'BMP'
+        elif ext.lower() == '.webp':
+            save_format = 'WEBP'
+        else:
+            save_format = 'JPEG'  # 默认
+        
+        # 保存图片
+        try:
+            if save_format == 'JPEG':
+                # JPEG不支持透明通道，需要转换
+                if image.mode in ('RGBA', 'LA'):
+                    # 创建白色背景
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'RGBA':
+                        background.paste(image, mask=image.split()[3])  # 使用alpha通道作为遮罩
+                    else:
+                        background.paste(image)
+                    image = background
+                elif image.mode != 'RGB':
+                    image = image.convert('RGB')
+                image.save(output_path, save_format, quality=quality)
+            elif save_format == 'PNG':
+                # PNG支持透明通道
+                if image.mode not in ('RGBA', 'RGB', 'L', 'LA', 'P'):
+                    image = image.convert('RGBA')
+                image.save(output_path, save_format)
+            elif save_format == 'TIFF':
+                # TIFF支持多种模式
+                image.save(output_path, save_format)
+            elif save_format == 'BMP':
+                # BMP不支持透明通道
+                if image.mode in ('RGBA', 'LA'):
+                    image = image.convert('RGB')
+                image.save(output_path, save_format)
+            elif save_format == 'WEBP':
+                # WebP支持透明通道
+                image.save(output_path, save_format, quality=quality)
+            else:
+                # 默认情况
+                image.save(output_path, save_format)
+            
+            return output_path
+        except Exception as e:
+            raise ValueError(f"保存图片失败 {output_path}: {e}")
         """
         保存带水印的图片
         
@@ -299,16 +499,31 @@ class WatermarkProcessor:
                            position: WatermarkPosition = WatermarkPosition.BOTTOM_RIGHT,
                            font_path: Optional[str] = None,
                            opacity: float = 1.0,
-                           output_format: str = "auto") -> str:
+                           output_format: str = "auto",
+                           quality: int = 95,
+                           naming_rule: str = "suffix",
+                           custom_prefix: str = "wm_",
+                           custom_suffix: str = "_watermarked",
+                           resize_mode: str = "none",
+                           resize_width: Optional[int] = None,
+                           resize_height: Optional[int] = None,
+                           resize_percent: Optional[float] = None) -> str:
         """处理单张图片"""
         # 添加水印
         watermarked_image = self.add_watermark(
             image_path, date_text, font_size, color, position, font_path, opacity
         )
         
+        # 调整图片尺寸
+        if resize_mode != "none":
+            watermarked_image = self.resize_image(
+                watermarked_image, resize_mode, resize_width, resize_height, resize_percent
+            )
+        
         # 保存图片
         output_path = self.save_watermarked_image(
-            watermarked_image, image_path, output_dir, output_format
+            watermarked_image, image_path, output_dir, output_format, 
+            quality, naming_rule, custom_prefix, custom_suffix
         )
         
         return output_path
