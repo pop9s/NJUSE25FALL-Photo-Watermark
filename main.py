@@ -61,11 +61,12 @@ class PhotoWatermarkApp:
     
     def process_images(self, input_path: str, font_size: int = 36, 
                       color: str = "#FFFFFF", position_str: str = "bottom_right",
-                      font_path: Optional[str] = None, opacity: float = 1.0) -> None:
+                      font_path: Optional[str] = None, opacity: float = 1.0,
+                      output_format: str = "auto") -> None:
         """处理图片添加水印"""
         
         print(f"开始处理路径: {input_path}")
-        print(f"配置参数: 字体大小={font_size}, 颜色={color}, 位置={position_str}, 透明度={opacity}")
+        print(f"配置参数: 字体大小={font_size}, 颜色={color}, 位置={position_str}, 透明度={opacity}, 输出格式={output_format}")
         
         # 验证输入路径
         if not os.path.exists(input_path):
@@ -106,7 +107,8 @@ class PhotoWatermarkApp:
                         color=color,
                         position=position,
                         font_path=font_path,
-                        opacity=opacity
+                        opacity=opacity,
+                        output_format=output_format
                     )
                     
                     print(f"  ✅ 已保存: {os.path.basename(output_path)}")
@@ -187,6 +189,14 @@ def create_parser() -> argparse.ArgumentParser:
         help="水印透明度 0.0-1.0 (默认: 1.0 不透明)"
     )
     
+    parser.add_argument(
+        "--output-format", "-of",
+        type=str,
+        default="auto",
+        choices=["auto", "jpeg", "png"],
+        help="输出格式 (auto: 保持原格式, jpeg: JPEG格式, png: PNG格式, 默认: auto)"
+    )
+    
     return parser
 
 
@@ -224,7 +234,8 @@ def main():
             color=args.color,
             position_str=args.position,
             font_path=args.font_path,
-            opacity=args.opacity
+            opacity=args.opacity,
+            output_format=args.output_format
         )
     except KeyboardInterrupt:
         print("\n用户中断操作")

@@ -67,7 +67,8 @@ class PhotoWatermarkGUI:
             'color': '#FFFFFF',
             'position': 'bottom_right',
             'font_path': '',
-            'opacity': 1.0
+            'opacity': 1.0,
+            'output_format': 'auto'  # 新增输出格式设置
         }
         
         # 创建界面
@@ -172,6 +173,19 @@ class PhotoWatermarkGUI:
         self.opacity_label.grid(row=4, column=1, sticky=tk.W, pady=2)
         opacity_scale.configure(command=self.update_opacity_label)
         
+        # 输出格式
+        ttk.Label(settings_frame, text="输出格式:").grid(row=5, column=0, sticky=tk.W, pady=2)
+        self.output_format_var = tk.StringVar(value=self.settings['output_format'])
+        format_combo = ttk.Combobox(settings_frame, textvariable=self.output_format_var,
+                                   values=['auto', 'jpeg', 'png'],
+                                   state="readonly", width=12)
+        format_combo.grid(row=5, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 输出格式说明
+        format_help = ttk.Label(settings_frame, text="auto: 保持原格式", 
+                               foreground="gray", font=("Consolas", 8))
+        format_help.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(0, 5))
+        
         settings_frame.columnconfigure(1, weight=1)
         
         # 处理按钮区域
@@ -242,10 +256,14 @@ class PhotoWatermarkGUI:
     def select_images(self):
         """选择图片文件"""
         file_types = [
-            ("图片文件", "*.jpg *.jpeg *.png *.tiff *.tif"),
+            ("图片文件", "*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp *.gif *.ico"),
             ("JPEG文件", "*.jpg *.jpeg"),
             ("PNG文件", "*.png"),
+            ("BMP文件", "*.bmp"),
             ("TIFF文件", "*.tiff *.tif"),
+            ("WebP文件", "*.webp"),
+            ("GIF文件", "*.gif"),
+            ("图标文件", "*.ico"),
             ("所有文件", "*.*")
         ]
         
@@ -347,6 +365,7 @@ class PhotoWatermarkGUI:
                 'color': self.color_var.get(),
                 'position': self.position_var.get(),
                 'opacity': self.opacity_var.get(),
+                'output_format': self.output_format_var.get(),
                 'font_path': None  # 暂时不支持自定义字体路径
             }
         except ValueError as e:
@@ -395,7 +414,8 @@ class PhotoWatermarkGUI:
                             color=settings['color'],
                             position=position,
                             font_path=settings['font_path'],
-                            opacity=settings['opacity']
+                            opacity=settings['opacity'],
+                            output_format=settings['output_format']
                         )
                         
                         # 更新成功状态

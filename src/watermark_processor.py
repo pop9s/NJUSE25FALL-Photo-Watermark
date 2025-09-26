@@ -114,11 +114,30 @@ class WatermarkProcessor:
         # 打开图片
         try:
             image = Image.open(image_path)
-            # 确保图片为RGB模式
-            if image.mode != 'RGB':
+            original_mode = image.mode
+            has_transparency = 'transparency' in image.info or original_mode in ('RGBA', 'LA')
+            
+            # 处理不同的图像模式
+            if original_mode == 'P':  # 调色板模式
+                if has_transparency:
+                    image = image.convert('RGBA')
+                else:
+                    image = image.convert('RGB')
+            elif original_mode in ('L', 'LA'):  # 灰度模式
+                if has_transparency or original_mode == 'LA':
+                    image = image.convert('RGBA')
+                else:
+                    image = image.convert('RGB')
+            elif original_mode in ('1', 'P'):
+                image = image.convert('RGB')
+            elif original_mode not in ('RGB', 'RGBA'):
+                # 其他不常见模式，尝试转换为RGB
                 image = image.convert('RGB')
         except Exception as e:
             raise ValueError(f"无法打开图片文件 {image_path}: {e}")
+        
+        # 判断是否需要保持透明通道
+        preserve_alpha = image.mode == 'RGBA'
         
         # 创建绘图对象
         draw = ImageDraw.Draw(image)
@@ -150,9 +169,14 @@ class WatermarkProcessor:
             watermark_draw.text(text_position, date_text, font=font, fill=rgba_color)
             
             # 将透明层合并到原图
-            image = image.convert('RGBA')
+            if not preserve_alpha:
+                image = image.convert('RGBA')
             image = Image.alpha_composite(image, watermark_layer)
-            image = image.convert('RGB')
+            
+            # 如果原图不是透明的，可以选择转回RGB
+            if not preserve_alpha:
+                # 这里保持RGBA，让用户在保存时选择格式
+                pass
         else:
             # 直接在图片上绘制文本
             text_size = self.get_text_size(date_text, font)
@@ -177,11 +201,55 @@ class WatermarkProcessor:
         return output_dir
     
     def save_watermarked_image(self, image: Image.Image, original_path: str, 
-                              output_dir: str, quality: int = 95) -> str:
-        """保存带水印的图片"""
+                              output_dir: str, output_format: str = "auto", 
+                              quality: int = 95) -> str:
+        """
+        保存带水印的图片
+        
+        Args:
+            image: 带水印的图像对象
+            original_path: 原始文件路径
+            output_dir: 输出目录
+            output_format: 输出格式 ("auto", "jpeg", "png")
+            quality: JPEG质量 (1-100)
+        
+        Returns:
+            输出文件路径
+        """
         # 获取原文件名和扩展名
         filename = os.path.basename(original_path)
-        name, ext = os.path.splitext(filename)
+        name, original_ext = os.path.splitext(filename)
+        
+        # 决定输出格式和扩展名
+        if output_format.lower() == "auto":
+            # 自动模式：保持原格式
+            if original_ext.lower() in ['.jpg', '.jpeg']:
+                save_format = 'JPEG'
+                ext = '.jpg'
+            elif original_ext.lower() == '.png':
+                save_format = 'PNG'
+                ext = '.png'
+            elif original_ext.lower() in ['.tiff', '.tif']:
+                save_format = 'TIFF'
+                ext = '.tiff'
+            elif original_ext.lower() == '.bmp':
+                save_format = 'BMP'
+                ext = '.bmp'
+            elif original_ext.lower() == '.webp':
+                save_format = 'WEBP'
+                ext = '.webp'
+            else:
+                # 默认保存为JPEG
+                save_format = 'JPEG'
+                ext = '.jpg'
+        elif output_format.lower() == "jpeg":
+            save_format = 'JPEG'
+            ext = '.jpg'
+        elif output_format.lower() == "png":
+            save_format = 'PNG'
+            ext = '.png'
+        else:
+            raise ValueError(f"不支持的输出格式: {output_format}")
         
         # 生成输出文件名
         output_filename = f"{name}_watermarked{ext}"
@@ -189,14 +257,38 @@ class WatermarkProcessor:
         
         # 保存图片
         try:
-            if ext.lower() in ['.jpg', '.jpeg']:
-                image.save(output_path, 'JPEG', quality=quality)
-            elif ext.lower() in ['.png']:
-                image.save(output_path, 'PNG')
-            elif ext.lower() in ['.tiff', '.tif']:
-                image.save(output_path, 'TIFF')
+            if save_format == 'JPEG':
+                # JPEG不支持透明通道，需要转换
+                if image.mode in ('RGBA', 'LA'):
+                    # 创建白色背景
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'RGBA':
+                        background.paste(image, mask=image.split()[3])  # 使用alpha通道作为遮罩
+                    else:
+                        background.paste(image)
+                    image = background
+                elif image.mode != 'RGB':
+                    image = image.convert('RGB')
+                image.save(output_path, save_format, quality=quality)
+            elif save_format == 'PNG':
+                # PNG支持透明通道
+                if image.mode not in ('RGBA', 'RGB', 'L', 'LA', 'P'):
+                    image = image.convert('RGBA')
+                image.save(output_path, save_format)
+            elif save_format == 'TIFF':
+                # TIFF支持多种模式
+                image.save(output_path, save_format)
+            elif save_format == 'BMP':
+                # BMP不支持透明通道
+                if image.mode in ('RGBA', 'LA'):
+                    image = image.convert('RGB')
+                image.save(output_path, save_format)
+            elif save_format == 'WEBP':
+                # WebP支持透明通道
+                image.save(output_path, save_format, quality=quality)
             else:
-                image.save(output_path, 'JPEG', quality=quality)
+                # 默认情况
+                image.save(output_path, save_format)
             
             return output_path
         except Exception as e:
@@ -206,7 +298,8 @@ class WatermarkProcessor:
                            font_size: int = 36, color: str = "#FFFFFF",
                            position: WatermarkPosition = WatermarkPosition.BOTTOM_RIGHT,
                            font_path: Optional[str] = None,
-                           opacity: float = 1.0) -> str:
+                           opacity: float = 1.0,
+                           output_format: str = "auto") -> str:
         """处理单张图片"""
         # 添加水印
         watermarked_image = self.add_watermark(
@@ -214,6 +307,8 @@ class WatermarkProcessor:
         )
         
         # 保存图片
-        output_path = self.save_watermarked_image(watermarked_image, image_path, output_dir)
+        output_path = self.save_watermarked_image(
+            watermarked_image, image_path, output_dir, output_format
+        )
         
         return output_path

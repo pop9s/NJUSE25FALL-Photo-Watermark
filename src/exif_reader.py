@@ -13,7 +13,15 @@ class ExifReader:
     """EXIF信息读取器"""
     
     # 支持的图片格式
-    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.tiff', '.tif', '.png'}
+    SUPPORTED_FORMATS = {
+        '.jpg', '.jpeg',    # JPEG格式
+        '.png',             # PNG格式（支持透明通道）
+        '.bmp',             # Windows位图格式
+        '.tiff', '.tif',    # TIFF格式
+        '.webp',            # WebP格式（现代格式）
+        '.ico',             # 图标格式
+        '.gif'              # GIF格式（支持动画，但处理为静态）
+    }
     
     def __init__(self):
         pass
@@ -49,6 +57,13 @@ class ExifReader:
         返回格式: YYYY-MM-DD
         """
         try:
+            # 检查文件格式，某些格式不支持EXIF
+            _, ext = os.path.splitext(image_path.lower())
+            
+            # PNG, BMP, GIF, ICO 通常不包含EXIF信息
+            if ext in {'.png', '.bmp', '.gif', '.ico'}:
+                return None
+            
             # 读取EXIF数据
             exif_data = piexif.load(image_path)
             
@@ -86,7 +101,7 @@ class ExifReader:
             return None
             
         except Exception as e:
-            print(f"读取EXIF信息失败 {image_path}: {e}")
+            # 静默失败，不打印错误信息（对于不支持EXIF的格式这是正常的）
             return None
     
     def get_file_modification_date(self, image_path: str) -> str:
