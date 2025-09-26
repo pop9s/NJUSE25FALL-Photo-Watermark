@@ -1,0 +1,22 @@
+[tool.basedpyright]
+include = ["src", "."]
+extraPaths = ["src"]
+pythonPath = "."
+
+[tool.pylsp-mypy]
+enabled = true
+live_mode = true
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "photo-watermark"
+version = "1.0.0"
+description = "基于EXIF信息的照片日期水印工具"
+authors = [{name = "NJUSE25FALL"}]
+dependencies = [
+    "Pillow>=10.0.0",
+    "piexif>=1.1.3"
+]
