@@ -76,7 +76,7 @@ class WatermarkProcessor:
             return image.resize(new_size, Image.Resampling.LANCZOS)
         except AttributeError:
             # 兼容较旧版本的Pillow
-            return image.resize(new_size, Image.LANCZOS)
+            return image.resize(new_size, Image.Resampling.LANCZOS)
     
     def get_text_size(self, text: str, font) -> Tuple[int, int]:
         """获取文本在指定字体下的尺寸"""
@@ -109,23 +109,57 @@ class WatermarkProcessor:
         
         return positions[position]
     
-    def get_font(self, font_size: int, font_path: Optional[str] = None):
+    def get_font(self, font_size: int, font_path: Optional[str] = None, font_style: Optional[dict[str, bool]] = None):
         """获取字体对象"""
         try:
-            if font_path and os.path.exists(font_path):
-                return ImageFont.truetype(font_path, font_size)
-            else:
-                # 尝试使用系统默认字体
-                try:
-                    # Windows系统尝试使用微软雅黑
-                    return ImageFont.truetype("msyh.ttc", font_size)
-                except OSError:
+            # 处理字体样式
+            if font_style:
+                # 这里我们尝试通过字体文件名来支持粗体和斜体
+                # 在实际应用中，可能需要更复杂的字体匹配逻辑
+                if font_path and os.path.exists(font_path):
+                    return ImageFont.truetype(font_path, font_size)
+                else:
+                    # 尝试使用系统默认字体
                     try:
-                        # 尝试使用Arial字体
-                        return ImageFont.truetype("arial.ttf", font_size)
+                        # Windows系统尝试使用微软雅黑
+                        font_name = "msyh.ttc"
+                        if font_style.get('bold') and font_style.get('italic'):
+                            font_name = "msyhbd.ttc"  # 粗体+斜体
+                        elif font_style.get('bold'):
+                            font_name = "msyhbd.ttc"  # 粗体
+                        elif font_style.get('italic'):
+                            # Windows微软雅黑斜体可能需要其他处理
+                            pass
+                        return ImageFont.truetype(font_name, font_size)
                     except OSError:
-                        # 如果都失败，使用PIL默认字体
-                        return ImageFont.load_default()
+                        try:
+                            # 尝试使用Arial字体
+                            font_name = "arial.ttf"
+                            if font_style.get('bold') and font_style.get('italic'):
+                                font_name = "arialbi.ttf"  # 粗体+斜体
+                            elif font_style.get('bold'):
+                                font_name = "arialbd.ttf"  # 粗体
+                            elif font_style.get('italic'):
+                                font_name = "ariali.ttf"   # 斜体
+                            return ImageFont.truetype(font_name, font_size)
+                        except OSError:
+                            # 如果都失败，使用PIL默认字体
+                            return ImageFont.load_default()
+            else:
+                if font_path and os.path.exists(font_path):
+                    return ImageFont.truetype(font_path, font_size)
+                else:
+                    # 尝试使用系统默认字体
+                    try:
+                        # Windows系统尝试使用微软雅黑
+                        return ImageFont.truetype("msyh.ttc", font_size)
+                    except OSError:
+                        try:
+                            # 尝试使用Arial字体
+                            return ImageFont.truetype("arial.ttf", font_size)
+                        except OSError:
+                            # 如果都失败，使用PIL默认字体
+                            return ImageFont.load_default()
         except Exception:
             return ImageFont.load_default()
     
@@ -145,9 +179,15 @@ class WatermarkProcessor:
                      font_size: int = 36, color: str = "#FFFFFF", 
                      position: WatermarkPosition = WatermarkPosition.BOTTOM_RIGHT,
                      font_path: Optional[str] = None,
-                     opacity: float = 1.0) -> Image.Image:
+                     opacity: float = 1.0,
+                     custom_text: Optional[str] = None,
+                     font_style: Optional[dict[str, bool]] = None,
+                     shadow: bool = False,
+                     stroke: bool = False,
+                     image_watermark_path: Optional[str] = None,
+                     image_watermark_scale: float = 1.0) -> Image.Image:
         """
-        在图片上添加日期水印
+        在图片上添加水印
         
         Args:
             image_path: 图片路径
@@ -157,6 +197,12 @@ class WatermarkProcessor:
             position: 水印位置
             font_path: 字体文件路径（可选）
             opacity: 透明度 (0.0-1.0)
+            custom_text: 自定义水印文本（可选）
+            font_style: 字体样式字典，支持 'bold', 'italic' 键
+            shadow: 是否添加阴影效果
+            stroke: 是否添加描边效果
+            image_watermark_path: 图片水印路径（可选）
+            image_watermark_scale: 图片水印缩放比例（0.0-1.0）
             
         Returns:
             带水印的PIL图像对象
@@ -189,11 +235,74 @@ class WatermarkProcessor:
         # 判断是否需要保持透明通道
         preserve_alpha = image.mode == 'RGBA'
         
+        # 如果提供了图片水印路径，则使用图片水印
+        if image_watermark_path and os.path.exists(image_watermark_path):
+            try:
+                # 打开水印图片
+                watermark_image = Image.open(image_watermark_path)
+                
+                # 转换为RGBA模式以支持透明通道
+                if watermark_image.mode != 'RGBA':
+                    watermark_image = watermark_image.convert('RGBA')
+                
+                # 根据缩放比例调整水印图片大小
+                if image_watermark_scale != 1.0:
+                    original_size = watermark_image.size
+                    new_size = (int(original_size[0] * image_watermark_scale), int(original_size[1] * image_watermark_scale))
+                    watermark_image = watermark_image.resize(new_size, Image.Resampling.LANCZOS)
+                
+                # 应用水印透明度
+                if opacity < 1.0:
+                    # 分离alpha通道并调整透明度
+                    alpha = watermark_image.split()[-1]  # 获取alpha通道
+                    alpha = alpha.point(lambda p: int(p * opacity))  # 调整透明度
+                    watermark_image.putalpha(alpha)
+                
+                # 计算水印位置
+                img_width, img_height = image.size
+                wm_width, wm_height = watermark_image.size
+                x, y = self.calculate_position(image.size, watermark_image.size, position)
+                
+                # 创建临时图像用于粘贴水印
+                if image.mode != 'RGBA':
+                    temp_image = image.convert('RGBA')
+                else:
+                    temp_image = image.copy()
+                
+                # 粘贴水印图片
+                temp_image.paste(watermark_image, (x, y), watermark_image)
+                
+                # 如果原图不是RGBA模式，转换回原模式
+                if image.mode != 'RGBA':
+                    if image.mode == 'RGB':
+                        image = temp_image.convert('RGB')
+                    elif image.mode == 'P':
+                        image = temp_image.convert('P')
+                    else:
+                        image = temp_image.convert(image.mode)
+                else:
+                    image = temp_image
+                
+                return image
+                
+            except Exception as e:
+                print(f"处理图片水印时出错: {e}")
+                # 如果图片水印处理失败，继续使用文本水印
+                pass
+        
         # 创建绘图对象
         draw = ImageDraw.Draw(image)
         
         # 获取字体
-        font = self.get_font(font_size, font_path)
+        font = self.get_font(font_size, font_path, font_style)
+        
+        # 应用字体样式（如果需要）
+        if font_style:
+            # 注意：PIL的字体样式支持有限，这里只是预留接口
+            pass
+        
+        # 确定使用的文本
+        watermark_text = custom_text if custom_text is not None else date_text
         
         # 转换颜色
         try:
@@ -203,8 +312,8 @@ class WatermarkProcessor:
             rgb_color = (255, 255, 255)
         
         # 如果需要透明度，创建带alpha通道的颜色
-        if opacity < 1.0:
-            alpha = int(255 * opacity)
+        if opacity < 1.0 or shadow or stroke:
+            alpha = int(255 * opacity) if opacity < 1.0 else 255
             rgba_color = rgb_color + (alpha,)
             
             # 创建透明水印层
@@ -212,11 +321,29 @@ class WatermarkProcessor:
             watermark_draw = ImageDraw.Draw(watermark_layer)
             
             # 计算文本位置
-            text_size = self.get_text_size(date_text, font)
+            text_size = self.get_text_size(watermark_text, font)
             text_position = self.calculate_position(image.size, text_size, position)
             
+            # 添加阴影效果
+            if shadow:
+                shadow_offset = max(1, font_size // 20)  # 阴影偏移量
+                shadow_color = (0, 0, 0, int(alpha * 0.5))  # 半透明黑色阴影
+                watermark_draw.text((text_position[0] + shadow_offset, text_position[1] + shadow_offset), 
+                                  watermark_text, font=font, fill=shadow_color)
+            
+            # 添加描边效果
+            if stroke:
+                stroke_color = (0, 0, 0, alpha)  # 黑色描边
+                stroke_width = max(1, font_size // 30)  # 描边宽度
+                # 绘制多个方向的描边
+                for dx in range(-stroke_width, stroke_width + 1):
+                    for dy in range(-stroke_width, stroke_width + 1):
+                        if dx != 0 or dy != 0:
+                            watermark_draw.text((text_position[0] + dx, text_position[1] + dy), 
+                                              watermark_text, font=font, fill=stroke_color)
+            
             # 在透明层上绘制文本
-            watermark_draw.text(text_position, date_text, font=font, fill=rgba_color)
+            watermark_draw.text(text_position, watermark_text, font=font, fill=rgba_color)
             
             # 将透明层合并到原图
             if not preserve_alpha:
@@ -229,9 +356,9 @@ class WatermarkProcessor:
                 pass
         else:
             # 直接在图片上绘制文本
-            text_size = self.get_text_size(date_text, font)
+            text_size = self.get_text_size(watermark_text, font)
             text_position = self.calculate_position(image.size, text_size, position)
-            draw.text(text_position, date_text, font=font, fill=rgb_color)
+            draw.text(text_position, watermark_text, font=font, fill=rgb_color)
         
         return image
     
@@ -507,11 +634,18 @@ class WatermarkProcessor:
                            resize_mode: str = "none",
                            resize_width: Optional[int] = None,
                            resize_height: Optional[int] = None,
-                           resize_percent: Optional[float] = None) -> str:
+                           resize_percent: Optional[float] = None,
+                           custom_text: Optional[str] = None,
+                           font_style: Optional[dict[str, bool]] = None,
+                           shadow: bool = False,
+                           stroke: bool = False,
+                           image_watermark_path: Optional[str] = None,
+                           image_watermark_scale: float = 1.0) -> str:
         """处理单张图片"""
         # 添加水印
         watermarked_image = self.add_watermark(
-            image_path, date_text, font_size, color, position, font_path, opacity
+            image_path, date_text, font_size, color, position, font_path, opacity,
+            custom_text, font_style, shadow, stroke, image_watermark_path, image_watermark_scale
         )
         
         # 调整图片尺寸

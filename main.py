@@ -66,7 +66,10 @@ class PhotoWatermarkApp:
                       jpeg_quality: int = 95, naming_rule: str = "suffix",
                       custom_prefix: str = "wm_", custom_suffix: str = "_watermarked",
                       resize_mode: str = "none", resize_width: Optional[int] = None,
-                      resize_height: Optional[int] = None, resize_percent: Optional[float] = None) -> None:
+                      resize_height: Optional[int] = None, resize_percent: Optional[float] = None,
+                      custom_text: Optional[str] = None, bold: bool = False,
+                      italic: bool = False, shadow: bool = False, stroke: bool = False,
+                      image_watermark: Optional[str] = None, image_watermark_scale: float = 1.0) -> None:
         """处理图片添加水印"""
         
         print(f"开始处理路径: {input_path}")
@@ -120,6 +123,13 @@ class PhotoWatermarkApp:
                 try:
                     print(f"[{idx}/{total_count}] 处理图片: {os.path.basename(image_path)}, 日期: {date_text}")
                     
+                    # 准备字体样式参数
+                    font_style = {}
+                    if bold:
+                        font_style['bold'] = True
+                    if italic:
+                        font_style['italic'] = True
+                    
                     output_path = self.watermark_processor.process_single_image(
                         image_path=image_path,
                         date_text=date_text,
@@ -137,7 +147,13 @@ class PhotoWatermarkApp:
                         resize_mode=resize_mode,
                         resize_width=resize_width,
                         resize_height=resize_height,
-                        resize_percent=resize_percent
+                        resize_percent=resize_percent,
+                        custom_text=custom_text,
+                        font_style=font_style if font_style else None,
+                        shadow=shadow,
+                        stroke=stroke,
+                        image_watermark_path=image_watermark,
+                        image_watermark_scale=image_watermark_scale
                     )
                     
                     print(f"  ✅ 已保存: {os.path.basename(output_path)}")
@@ -291,6 +307,53 @@ def create_parser() -> argparse.ArgumentParser:
         help="缩放百分比 0.1-3.0 (默认: 1.0)"
     )
     
+    # 新增自定义文本水印参数
+    parser.add_argument(
+        "--custom-text", "-ct",
+        type=str,
+        default=None,
+        help="自定义水印文本 (默认: 使用EXIF日期)"
+    )
+    
+    parser.add_argument(
+        "--bold", "-b",
+        action="store_true",
+        help="使用粗体字体"
+    )
+    
+    parser.add_argument(
+        "--italic", "-i",
+        action="store_true",
+        help="使用斜体字体"
+    )
+    
+    parser.add_argument(
+        "--shadow", "-sh",
+        action="store_true",
+        help="添加阴影效果"
+    )
+    
+    parser.add_argument(
+        "--stroke", "-st",
+        action="store_true",
+        help="添加描边效果"
+    )
+    
+    # 新增图片水印参数
+    parser.add_argument(
+        "--image-watermark", "-iw",
+        type=str,
+        default=None,
+        help="图片水印文件路径 (可选)"
+    )
+    
+    parser.add_argument(
+        "--image-watermark-scale", "-iws",
+        type=float,
+        default=1.0,
+        help="图片水印缩放比例 0.1-3.0 (默认: 1.0)"
+    )
+    
     return parser
 
 
@@ -326,6 +389,16 @@ def main():
         print(f"错误：字体文件不存在: {args.font_path}")
         sys.exit(1)
     
+    # 验证图片水印文件
+    if args.image_watermark and not os.path.exists(args.image_watermark):
+        print(f"错误：图片水印文件不存在: {args.image_watermark}")
+        sys.exit(1)
+    
+    # 验证图片水印缩放比例
+    if not (0.1 <= args.image_watermark_scale <= 3.0):
+        print("错误：图片水印缩放比例必须在 0.1 到 3.0 之间")
+        sys.exit(1)
+    
     # 创建应用实例并处理图片
     app = PhotoWatermarkApp()
     
@@ -346,7 +419,14 @@ def main():
             resize_mode=args.resize_mode,
             resize_width=args.resize_width,
             resize_height=args.resize_height,
-            resize_percent=args.resize_percent
+            resize_percent=args.resize_percent,
+            custom_text=args.custom_text,
+            bold=args.bold,
+            italic=args.italic,
+            shadow=args.shadow,
+            stroke=args.stroke,
+            image_watermark=args.image_watermark,
+            image_watermark_scale=args.image_watermark_scale
         )
     except KeyboardInterrupt:
         print("\n用户中断操作")

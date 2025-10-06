@@ -78,7 +78,16 @@ class PhotoWatermarkGUI:
             'resize_mode': 'none',
             'resize_width': 800,
             'resize_height': 600,
-            'resize_percent': 1.0
+            'resize_percent': 1.0,
+            # 新增水印文本设置
+            'custom_text': '',
+            'font_style_bold': False,
+            'font_style_italic': False,
+            'shadow': False,
+            'stroke': False,
+            # 新增图片水印设置
+            'image_watermark_path': '',
+            'image_watermark_scale': 1.0
         }
         
         # 创建界面
@@ -196,6 +205,40 @@ class PhotoWatermarkGUI:
                                foreground="gray", font=("Consolas", 8))
         format_help.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(0, 5))
         
+        # 自定义文本
+        ttk.Label(settings_frame, text="自定义文本:").grid(row=7, column=0, sticky=tk.W, pady=2)
+        self.custom_text_var = tk.StringVar(value=self.settings['custom_text'])
+        custom_text_entry = ttk.Entry(settings_frame, textvariable=self.custom_text_var, width=15)
+        custom_text_entry.grid(row=7, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        # 字体样式
+        ttk.Label(settings_frame, text="字体样式:").grid(row=8, column=0, sticky=tk.W, pady=2)
+        
+        font_style_frame = ttk.Frame(settings_frame)
+        font_style_frame.grid(row=8, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        self.font_style_bold_var = tk.BooleanVar(value=self.settings['font_style_bold'])
+        bold_check = ttk.Checkbutton(font_style_frame, text="粗体", variable=self.font_style_bold_var)
+        bold_check.pack(side=tk.LEFT)
+        
+        self.font_style_italic_var = tk.BooleanVar(value=self.settings['font_style_italic'])
+        italic_check = ttk.Checkbutton(font_style_frame, text="斜体", variable=self.font_style_italic_var)
+        italic_check.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 阴影和描边效果
+        ttk.Label(settings_frame, text="效果:").grid(row=9, column=0, sticky=tk.W, pady=2)
+        
+        effect_frame = ttk.Frame(settings_frame)
+        effect_frame.grid(row=9, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        self.shadow_var = tk.BooleanVar(value=self.settings['shadow'])
+        shadow_check = ttk.Checkbutton(effect_frame, text="阴影", variable=self.shadow_var)
+        shadow_check.pack(side=tk.LEFT)
+        
+        self.stroke_var = tk.BooleanVar(value=self.settings['stroke'])
+        stroke_check = ttk.Checkbutton(effect_frame, text="描边", variable=self.stroke_var)
+        stroke_check.pack(side=tk.LEFT, padx=(10, 0))
+        
         settings_frame.columnconfigure(1, weight=1)
         
         # 导出设置区域
@@ -287,9 +330,33 @@ class PhotoWatermarkGUI:
         
         resize_frame.columnconfigure(1, weight=1)
         
+        # 图片水印设置区域
+        image_watermark_frame = ttk.LabelFrame(control_frame, text="图片水印设置", padding="5")
+        image_watermark_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # 图片水印路径
+        ttk.Label(image_watermark_frame, text="水印图片:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.image_watermark_path_var = tk.StringVar(value=self.settings['image_watermark_path'])
+        image_watermark_frame_row0 = ttk.Frame(image_watermark_frame)
+        image_watermark_frame_row0.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        image_watermark_path_entry = ttk.Entry(image_watermark_frame_row0, textvariable=self.image_watermark_path_var, width=15)
+        image_watermark_path_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 2))
+        ttk.Button(image_watermark_frame_row0, text="浏览", command=self.select_image_watermark, width=8).grid(row=0, column=1)
+        image_watermark_frame_row0.columnconfigure(0, weight=1)
+        
+        # 图片水印缩放比例
+        ttk.Label(image_watermark_frame, text="缩放比例:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.image_watermark_scale_var = tk.DoubleVar(value=self.settings['image_watermark_scale'])
+        image_watermark_scale_spin = ttk.Spinbox(image_watermark_frame, from_=0.1, to=3.0, increment=0.1,
+                                textvariable=self.image_watermark_scale_var, width=10)
+        image_watermark_scale_spin.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=2)
+        
+        image_watermark_frame.columnconfigure(1, weight=1)
+        
         # 处理按钮区域
         button_frame = ttk.Frame(control_frame)
-        button_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        button_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         ttk.Button(button_frame, text="开始处理", 
                   command=self.start_processing, style="Accent.TButton").grid(row=0, column=0, sticky=(tk.W, tk.E))
@@ -371,6 +438,23 @@ class PhotoWatermarkGUI:
                     messagebox.showerror("错误", "不能将文件导出到原文件夹，请选择其他目录")
                     return
             self.output_dir_var.set(output_dir)
+    
+    def select_image_watermark(self):
+        """选择图片水印文件"""
+        file_types = [
+            ("图片文件", "*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp *.gif *.ico"),
+            ("PNG文件", "*.png"),
+            ("JPEG文件", "*.jpg *.jpeg"),
+            ("所有文件", "*.*")
+        ]
+        
+        file_path = filedialog.askopenfilename(
+            title="选择图片水印文件",
+            filetypes=file_types
+        )
+        
+        if file_path:
+            self.image_watermark_path_var.set(file_path)
     
     def select_images(self):
         """选择图片文件"""
@@ -495,7 +579,18 @@ class PhotoWatermarkGUI:
                 'resize_mode': self.resize_mode_var.get(),
                 'resize_width': int(self.resize_width_var.get()),
                 'resize_height': int(self.resize_height_var.get()),
-                'resize_percent': float(self.resize_percent_var.get())
+                'resize_percent': float(self.resize_percent_var.get()),
+                # 新增水印文本设置
+                'custom_text': self.custom_text_var.get() if self.custom_text_var.get() else None,
+                'font_style': {
+                    'bold': self.font_style_bold_var.get(),
+                    'italic': self.font_style_italic_var.get()
+                },
+                'shadow': self.shadow_var.get(),
+                'stroke': self.stroke_var.get(),
+                # 新增图片水印设置
+                'image_watermark_path': self.image_watermark_path_var.get() if self.image_watermark_path_var.get() else None,
+                'image_watermark_scale': float(self.image_watermark_scale_var.get())
             }
         except ValueError as e:
             messagebox.showerror("设置错误", f"设置参数格式错误: {e}")
@@ -559,7 +654,13 @@ class PhotoWatermarkGUI:
                         resize_mode=settings['resize_mode'],
                         resize_width=settings['resize_width'] if settings['resize_mode'] == 'width' else None,
                         resize_height=settings['resize_height'] if settings['resize_mode'] == 'height' else None,
-                        resize_percent=settings['resize_percent'] if settings['resize_mode'] == 'percent' else None
+                        resize_percent=settings['resize_percent'] if settings['resize_mode'] == 'percent' else None,
+                        custom_text=settings['custom_text'],
+                        font_style=settings['font_style'],
+                        shadow=settings['shadow'],
+                        stroke=settings['stroke'],
+                        image_watermark_path=settings['image_watermark_path'],
+                        image_watermark_scale=settings['image_watermark_scale']
                     )
                     
                     # 更新成功状态
