@@ -220,8 +220,16 @@ class PhotoWatermarkGUI:
         
         # 颜色
         ttk.Label(settings_frame, text="颜色:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        color_entry = ttk.Entry(settings_frame, textvariable=self.color_var, width=15)
-        color_entry.grid(row=1, column=1, sticky='ew', pady=2)
+        color_frame = ttk.Frame(settings_frame)
+        color_frame.grid(row=1, column=1, sticky='ew', pady=2)
+        color_frame.columnconfigure(0, weight=1)
+        
+        color_entry = ttk.Entry(color_frame, textvariable=self.color_var, width=10)
+        color_entry.grid(row=0, column=0, sticky='ew', padx=(0, 2))
+        
+        # 添加颜色选择按钮
+        color_button = ttk.Button(color_frame, text="🎨", width=3, command=self.select_color)
+        color_button.grid(row=0, column=1)
         
         # 位置
         ttk.Label(settings_frame, text="位置:").grid(row=2, column=0, sticky=tk.W, pady=2)
@@ -697,6 +705,51 @@ class PhotoWatermarkGUI:
         """更新缩放百分比标签"""
         if self.resize_percent_label is not None:
             self.resize_percent_label.config(text=f"{float(value):.1f}")
+    
+    def select_color(self):
+        """选择颜色"""
+        try:
+            # 尝试导入颜色选择对话框
+            import tkinter.colorchooser as colorchooser
+        except ImportError:
+            messagebox.showerror("错误", "当前环境不支持颜色选择器")
+            return
+        
+        # 获取当前颜色值
+        current_color = self.color_var.get()
+        
+        # 验证当前颜色格式
+        if not self.is_valid_hex_color(current_color):
+            current_color = "#FFFFFF"  # 默认白色
+        
+        # 打开颜色选择对话框
+        color = colorchooser.askcolor(
+            color=current_color,
+            title="选择水印颜色"
+        )
+        
+        # 如果用户选择了颜色，更新颜色值
+        if color[1] is not None:
+            self.color_var.set(color[1])
+    
+    def is_valid_hex_color(self, hex_color):
+        """验证十六进制颜色格式"""
+        if not isinstance(hex_color, str):
+            return False
+        
+        # 移除可能的#前缀
+        hex_color = hex_color.lstrip('#')
+        
+        # 检查长度是否为6
+        if len(hex_color) != 6:
+            return False
+        
+        # 检查是否只包含有效的十六进制字符
+        try:
+            int(hex_color, 16)
+            return True
+        except ValueError:
+            return False
     
     def select_output_dir(self):
         """选择输出目录"""
