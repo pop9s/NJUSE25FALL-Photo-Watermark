@@ -135,6 +135,12 @@ class PhotoWatermarkGUI:
         self.watermark_position = None  # 用于存储自定义水印位置
         self.watermark_canvas_item = None  # 用于存储水印在画布上的项目
         
+        # 初始化字体相关变量
+        self.font_path_var = tk.StringVar(value=str(self.settings['font_path']))
+        font_display_text = "默认字体" if not self.settings['font_path'] else str(self.settings['font_path'])
+        self.font_display_var = tk.StringVar(value=font_display_text)
+        self.available_fonts = self.get_system_fonts()
+        
         # 创建界面
         self.create_widgets()
         self.setup_drag_drop()
@@ -286,11 +292,26 @@ class PhotoWatermarkGUI:
         custom_text_entry = ttk.Entry(settings_frame, textvariable=self.custom_text_var, width=15)
         custom_text_entry.grid(row=7, column=1, sticky='ew', pady=2)
         
+        # 字体选择
+        ttk.Label(settings_frame, text="字体:").grid(row=8, column=0, sticky=tk.W, pady=2)
+        font_frame = ttk.Frame(settings_frame)
+        font_frame.grid(row=8, column=1, sticky='ew', pady=2)
+        font_frame.columnconfigure(0, weight=1)
+        
+        # 字体显示标签
+        self.font_display_var = tk.StringVar(value="默认字体" if not self.font_path_var.get() else self.font_path_var.get())
+        font_display = ttk.Entry(font_frame, textvariable=self.font_display_var, width=10, state='readonly')
+        font_display.grid(row=0, column=0, sticky='ew', padx=(0, 2))
+        
+        # 字体选择按钮
+        font_button = ttk.Button(font_frame, text="选择字体", command=self.select_font)
+        font_button.grid(row=0, column=1)
+        
         # 字体样式
-        ttk.Label(settings_frame, text="字体样式:").grid(row=8, column=0, sticky=tk.W, pady=2)
+        ttk.Label(settings_frame, text="字体样式:").grid(row=9, column=0, sticky=tk.W, pady=2)
         
         font_style_frame = ttk.Frame(settings_frame)
-        font_style_frame.grid(row=8, column=1, sticky='ew', pady=2)
+        font_style_frame.grid(row=9, column=1, sticky='ew', pady=2)
         
         bold_check = ttk.Checkbutton(font_style_frame, text="粗体", variable=self.font_style_bold_var)
         bold_check.pack(side=tk.LEFT)
@@ -299,10 +320,10 @@ class PhotoWatermarkGUI:
         italic_check.pack(side=tk.LEFT, padx=(10, 0))
         
         # 阴影和描边效果
-        ttk.Label(settings_frame, text="效果:").grid(row=9, column=0, sticky=tk.W, pady=2)
+        ttk.Label(settings_frame, text="效果:").grid(row=10, column=0, sticky=tk.W, pady=2)
         
         effect_frame = ttk.Frame(settings_frame)
-        effect_frame.grid(row=9, column=1, sticky='ew', pady=2)
+        effect_frame.grid(row=10, column=1, sticky='ew', pady=2)
         
         shadow_check = ttk.Checkbutton(effect_frame, text="阴影", variable=self.shadow_var)
         shadow_check.pack(side=tk.LEFT)
@@ -751,6 +772,82 @@ class PhotoWatermarkGUI:
         except ValueError:
             return False
     
+    def get_system_fonts(self):
+        """获取系统可用字体列表"""
+        try:
+            import tkinter.font as tkFont
+            # 获取系统字体
+            font_names = list(tkFont.families())
+            # 排序字体名称
+            font_names.sort()
+            return font_names
+        except Exception as e:
+            print(f"获取系统字体失败: {e}")
+            # 返回默认字体列表
+            return ['Arial', 'Times New Roman', 'Courier New', 'Microsoft YaHei', 'SimHei']
+    
+    def select_font(self):
+        """选择字体"""
+        # 创建字体选择对话框
+        font_window = tk.Toplevel(self.root)
+        font_window.title("选择字体")
+        font_window.geometry("400x300")
+        font_window.transient(self.root)
+        font_window.grab_set()
+        
+        # 创建字体列表框架
+        font_frame = ttk.Frame(font_window)
+        font_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 创建字体列表
+        font_listbox = tk.Listbox(font_frame)
+        font_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 添加滚动条
+        scrollbar = ttk.Scrollbar(font_frame, orient=tk.VERTICAL, command=font_listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        font_listbox.configure(yscrollcommand=scrollbar.set)
+        
+        # 填充字体列表
+        for font_name in self.available_fonts:
+            font_listbox.insert(tk.END, font_name)
+        
+        # 选择当前字体
+        current_font = self.font_path_var.get()
+        if current_font:
+            try:
+                index = self.available_fonts.index(current_font)
+                font_listbox.selection_set(index)
+                font_listbox.see(index)
+            except ValueError:
+                pass
+        
+        # 创建按钮框架
+        button_frame = ttk.Frame(font_window)
+        button_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        # 确定按钮
+        def on_ok():
+            selection = font_listbox.curselection()
+            if selection:
+                font_name = font_listbox.get(selection[0])
+                self.font_path_var.set(font_name)
+                self.font_display_var.set(font_name)
+            font_window.destroy()
+        
+        # 取消按钮
+        def on_cancel():
+            font_window.destroy()
+        
+        ok_button = ttk.Button(button_frame, text="确定", command=on_ok)
+        ok_button.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        cancel_button = ttk.Button(button_frame, text="取消", command=on_cancel)
+        cancel_button.pack(side=tk.RIGHT)
+        
+        # 双击选择
+        font_listbox.bind('<Double-Button-1>', lambda e: on_ok())
+    
     def select_output_dir(self):
         """选择输出目录"""
         output_dir = filedialog.askdirectory(title="选择输出目录")
@@ -1045,7 +1142,7 @@ class PhotoWatermarkGUI:
             position = self.position_var.get()
             opacity = self.opacity_var.get()
             output_format = self.output_format_var.get()
-            font_path = None  # 暂时不支持自定义字体路径
+            font_path = self.font_path_var.get() if self.font_path_var.get() else None
             # 新增导出设置
             output_dir = self.output_dir_var.get()
             jpeg_quality = self.jpeg_quality_var.get()

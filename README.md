@@ -77,6 +77,7 @@ python gui_app.py
 - 📈 实时处理进度显示
 - 📤 完整的导出控制选项
 - 🎨 颜色调色板选择器：点击🎨按钮打开颜色选择器，直观选择水印颜色
+- 🔠 字体选择器：可选择系统安装的字体、字号、粗体、斜体
 
 #### 💻 **命令行界面**
 
@@ -122,6 +123,23 @@ python main.py test_photos \
   --shadow \
   --font-size 60 \
   --color "#0000FF"
+```
+
+字体选择用法：
+```bash
+# 使用系统字体
+python main.py test_photos \
+  --custom-text "水印文本" \
+  --font-path "Arial" \
+  --bold \
+  --italic \
+  --font-size 48
+
+# 使用自定义字体文件
+python main.py test_photos \
+  --custom-text "特殊字体" \
+  --font-path "/path/to/custom_font.ttf" \
+  --font-size 36
 ```
 
 旋转功能用法：
