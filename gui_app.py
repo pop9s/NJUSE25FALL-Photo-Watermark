@@ -274,6 +274,8 @@ class PhotoWatermarkGUI:
         self.image_watermark_scale_var.trace('w', self.on_setting_change)
         # 新增旋转绑定
         self.rotation_var.trace('w', self.on_setting_change)
+        # 新增字体路径绑定
+        self.font_path_var.trace('w', self.on_setting_change)
         
         # 输出格式
         ttk.Label(settings_frame, text="输出格式:").grid(row=5, column=0, sticky=tk.W, pady=2)
