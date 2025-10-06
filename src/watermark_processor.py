@@ -107,7 +107,23 @@ class WatermarkProcessor:
             WatermarkPosition.BOTTOM_RIGHT: (img_width - text_width - margin, img_height - text_height - margin)
         }
         
-        return positions[position]
+        # 如果position是字符串，先转换为枚举
+        if isinstance(position, str):
+            position_map = {
+                'top_left': WatermarkPosition.TOP_LEFT,
+                'top_center': WatermarkPosition.TOP_CENTER,
+                'top_right': WatermarkPosition.TOP_RIGHT,
+                'center_left': WatermarkPosition.CENTER_LEFT,
+                'center': WatermarkPosition.CENTER,
+                'center_right': WatermarkPosition.CENTER_RIGHT,
+                'bottom_left': WatermarkPosition.BOTTOM_LEFT,
+                'bottom_center': WatermarkPosition.BOTTOM_CENTER,
+                'bottom_right': WatermarkPosition.BOTTOM_RIGHT
+            }
+            position = position_map.get(position.lower(), WatermarkPosition.BOTTOM_RIGHT)
+        
+        # 如果position是枚举实例，直接使用
+        return positions.get(position, positions[WatermarkPosition.BOTTOM_RIGHT])
     
     def get_font(self, font_size: int, font_path: Optional[str] = None, font_style: Optional[dict[str, bool]] = None):
         """获取字体对象"""
@@ -185,7 +201,8 @@ class WatermarkProcessor:
                      shadow: bool = False,
                      stroke: bool = False,
                      image_watermark_path: Optional[str] = None,
-                     image_watermark_scale: float = 1.0) -> Image.Image:
+                     image_watermark_scale: float = 1.0,
+                     rotation: float = 0.0) -> Image.Image:
         """
         在图片上添加水印
         
@@ -203,6 +220,7 @@ class WatermarkProcessor:
             stroke: 是否添加描边效果
             image_watermark_path: 图片水印路径（可选）
             image_watermark_scale: 图片水印缩放比例（0.0-1.0）
+            rotation: 水印旋转角度（度）
             
         Returns:
             带水印的PIL图像对象
@@ -250,6 +268,10 @@ class WatermarkProcessor:
                     original_size = watermark_image.size
                     new_size = (int(original_size[0] * image_watermark_scale), int(original_size[1] * image_watermark_scale))
                     watermark_image = watermark_image.resize(new_size, Image.Resampling.LANCZOS)
+                
+                # 应用水印旋转
+                if rotation != 0:
+                    watermark_image = watermark_image.rotate(rotation, expand=True)
                 
                 # 应用水印透明度
                 if opacity < 1.0:
@@ -311,8 +333,8 @@ class WatermarkProcessor:
             print(f"颜色格式错误，使用默认白色: {color}")
             rgb_color = (255, 255, 255)
         
-        # 如果需要透明度，创建带alpha通道的颜色
-        if opacity < 1.0 or shadow or stroke:
+        # 如果需要旋转或透明度，创建带alpha通道的颜色
+        if opacity < 1.0 or shadow or stroke or rotation != 0:
             alpha = int(255 * opacity) if opacity < 1.0 else 255
             rgba_color = rgb_color + (alpha,)
             
@@ -324,26 +346,58 @@ class WatermarkProcessor:
             text_size = self.get_text_size(watermark_text, font)
             text_position = self.calculate_position(image.size, text_size, position)
             
-            # 添加阴影效果
-            if shadow:
-                shadow_offset = max(1, font_size // 20)  # 阴影偏移量
-                shadow_color = (0, 0, 0, int(alpha * 0.5))  # 半透明黑色阴影
-                watermark_draw.text((text_position[0] + shadow_offset, text_position[1] + shadow_offset), 
-                                  watermark_text, font=font, fill=shadow_color)
-            
-            # 添加描边效果
-            if stroke:
-                stroke_color = (0, 0, 0, alpha)  # 黑色描边
-                stroke_width = max(1, font_size // 30)  # 描边宽度
-                # 绘制多个方向的描边
-                for dx in range(-stroke_width, stroke_width + 1):
-                    for dy in range(-stroke_width, stroke_width + 1):
-                        if dx != 0 or dy != 0:
-                            watermark_draw.text((text_position[0] + dx, text_position[1] + dy), 
-                                              watermark_text, font=font, fill=stroke_color)
-            
-            # 在透明层上绘制文本
-            watermark_draw.text(text_position, watermark_text, font=font, fill=rgba_color)
+            # 如果需要旋转，创建旋转的文本图像
+            if rotation != 0:
+                # 创建一个足够大的图像来容纳旋转后的文本
+                text_img = Image.new('RGBA', (text_size[0] * 2, text_size[1] * 2), (0, 0, 0, 0))
+                text_draw = ImageDraw.Draw(text_img)
+                
+                # 在文本图像上绘制文本
+                text_draw.text((text_size[0] // 2, text_size[1] // 2), watermark_text, font=font, fill=rgba_color)
+                
+                # 旋转文本图像
+                rotated_text = text_img.rotate(rotation, expand=True)
+                
+                # 计算旋转后文本的中心位置
+                rotated_width, rotated_height = rotated_text.size
+                center_x = text_position[0] + text_size[0] // 2
+                center_y = text_position[1] + text_size[1] // 2
+                paste_x = center_x - rotated_width // 2
+                paste_y = center_y - rotated_height // 2
+                
+                # 添加阴影效果
+                if shadow:
+                    shadow_offset = max(1, font_size // 20)  # 阴影偏移量
+                    shadow_color = (0, 0, 0, int(alpha * 0.5))  # 半透明黑色阴影
+                    shadow_text = text_img.rotate(rotation, expand=True)
+                    shadow_draw = ImageDraw.Draw(shadow_text)
+                    shadow_draw.text((text_size[0] // 2 + shadow_offset, text_size[1] // 2 + shadow_offset), 
+                                   watermark_text, font=font, fill=shadow_color)
+                    watermark_layer.paste(shadow_text, (int(paste_x + shadow_offset), int(paste_y + shadow_offset)), shadow_text)
+                
+                # 粘贴旋转后的文本到水印层
+                watermark_layer.paste(rotated_text, (int(paste_x), int(paste_y)), rotated_text)
+            else:
+                # 添加阴影效果
+                if shadow:
+                    shadow_offset = max(1, font_size // 20)  # 阴影偏移量
+                    shadow_color = (0, 0, 0, int(alpha * 0.5))  # 半透明黑色阴影
+                    watermark_draw.text((text_position[0] + shadow_offset, text_position[1] + shadow_offset), 
+                                      watermark_text, font=font, fill=shadow_color)
+                
+                # 添加描边效果
+                if stroke:
+                    stroke_color = (0, 0, 0, alpha)  # 黑色描边
+                    stroke_width = max(1, font_size // 30)  # 描边宽度
+                    # 绘制多个方向的描边
+                    for dx in range(-stroke_width, stroke_width + 1):
+                        for dy in range(-stroke_width, stroke_width + 1):
+                            if dx != 0 or dy != 0:
+                                watermark_draw.text((text_position[0] + dx, text_position[1] + dy), 
+                                                  watermark_text, font=font, fill=stroke_color)
+                
+                # 在透明层上绘制文本
+                watermark_draw.text(text_position, watermark_text, font=font, fill=rgba_color)
             
             # 将透明层合并到原图
             if not preserve_alpha:
@@ -640,12 +694,14 @@ class WatermarkProcessor:
                            shadow: bool = False,
                            stroke: bool = False,
                            image_watermark_path: Optional[str] = None,
-                           image_watermark_scale: float = 1.0) -> str:
+                           image_watermark_scale: float = 1.0,
+                           rotation: float = 0.0) -> str:
         """处理单张图片"""
         # 添加水印
         watermarked_image = self.add_watermark(
             image_path, date_text, font_size, color, position, font_path, opacity,
-            custom_text, font_style, shadow, stroke, image_watermark_path, image_watermark_scale
+            custom_text, font_style, shadow, stroke, image_watermark_path, image_watermark_scale,
+            rotation  # 新增旋转参数
         )
         
         # 调整图片尺寸

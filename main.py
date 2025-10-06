@@ -69,7 +69,8 @@ class PhotoWatermarkApp:
                       resize_height: Optional[int] = None, resize_percent: Optional[float] = None,
                       custom_text: Optional[str] = None, bold: bool = False,
                       italic: bool = False, shadow: bool = False, stroke: bool = False,
-                      image_watermark: Optional[str] = None, image_watermark_scale: float = 1.0) -> None:
+                      image_watermark: Optional[str] = None, image_watermark_scale: float = 1.0,
+                      rotation: float = 0.0) -> None:
         """处理图片添加水印"""
         
         print(f"开始处理路径: {input_path}")
@@ -153,7 +154,8 @@ class PhotoWatermarkApp:
                         shadow=shadow,
                         stroke=stroke,
                         image_watermark_path=image_watermark,
-                        image_watermark_scale=image_watermark_scale
+                        image_watermark_scale=image_watermark_scale,
+                        rotation=rotation  # 新增旋转参数
                     )
                     
                     print(f"  ✅ 已保存: {os.path.basename(output_path)}")
@@ -354,6 +356,14 @@ def create_parser() -> argparse.ArgumentParser:
         help="图片水印缩放比例 0.1-3.0 (默认: 1.0)"
     )
     
+    # 新增旋转参数
+    parser.add_argument(
+        "--rotation", "-r",
+        type=float,
+        default=0.0,
+        help="水印旋转角度 -180.0到180.0度 (默认: 0.0)"
+    )
+    
     return parser
 
 
@@ -399,6 +409,11 @@ def main():
         print("错误：图片水印缩放比例必须在 0.1 到 3.0 之间")
         sys.exit(1)
     
+    # 验证旋转角度
+    if not (-180.0 <= args.rotation <= 180.0):
+        print("错误：旋转角度必须在 -180.0 到 180.0 之间")
+        sys.exit(1)
+    
     # 创建应用实例并处理图片
     app = PhotoWatermarkApp()
     
@@ -426,7 +441,8 @@ def main():
             shadow=args.shadow,
             stroke=args.stroke,
             image_watermark=args.image_watermark,
-            image_watermark_scale=args.image_watermark_scale
+            image_watermark_scale=args.image_watermark_scale,
+            rotation=args.rotation  # 新增旋转参数
         )
     except KeyboardInterrupt:
         print("\n用户中断操作")

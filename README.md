@@ -20,6 +20,7 @@
 - **水印类型**：支持文本水印和图片水印
 - **文本水印**：自定义文本、字体样式（粗体、斜体）、阴影和描边效果
 - **图片水印**：支持PNG透明通道、缩放和透明度调节
+- **旋转功能**：支持水印任意角度旋转（-180°到180°）
 
 ### 📁 **强大的文件处理**
 - **拖拽导入**：支持图片和文件夹的直接拖拽
@@ -122,6 +123,22 @@ python main.py test_photos \
   --color "#0000FF"
 ```
 
+旋转功能用法：
+```
+# 文本水印旋转45度
+python main.py test_photos \
+  --custom-text "旋转水印" \
+  --rotation 45 \
+  --font-size 48 \
+  --color "#FF0000"
+
+# 图片水印旋转90度
+python main.py test_photos \
+  --image-watermark "logo.png" \
+  --rotation 90 \
+  --image-watermark-scale 0.5
+```
+
 ## 📊 参数说明
 
 ### 基础参数
@@ -154,6 +171,7 @@ python main.py test_photos \
 |------|------|--------|------|
 | `--image-watermark` | `-iw` | None | 图片水印文件路径 |
 | `--image-watermark-scale` | `-iws` | 1.0 | 图片水印缩放比例 (0.1-3.0) |
+| `--rotation` | `-r` | 0.0 | 水印旋转角度 (-180.0到180.0度) |
 
 ### 导出控制参数
 | 参数 | 简写 | 默认值 | 说明 |
