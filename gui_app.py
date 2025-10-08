@@ -33,8 +33,9 @@ for path in [current_dir, src_path]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from exif_reader import ExifReader
-from watermark_processor import WatermarkProcessor, WatermarkPosition
+from src.exif_reader import ExifReader
+from src.watermark_processor import WatermarkProcessor, WatermarkPosition
+from src.config_manager import ConfigManager, ConfigManagerUI
 
 
 class ImageItem:
@@ -58,6 +59,9 @@ class PhotoWatermarkGUI:
         # 初始化核心组件
         self.exif_reader = ExifReader()
         self.watermark_processor = WatermarkProcessor()
+        
+        # 初始化配置管理器
+        self.config_manager = ConfigManager()
         
         # 存储导入的图片
         self.image_items: List[ImageItem] = []
@@ -149,6 +153,12 @@ class PhotoWatermarkGUI:
         if self.image_tree is not None:
             self.image_tree.bind('<<TreeviewSelect>>', self.on_image_select)
         
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # 加载上次会话设置
+        self.load_last_session()
+    
     def setup_window(self):
         """设置主窗口"""
         self.root.title("照片水印工具 - GUI版")
@@ -191,12 +201,49 @@ class PhotoWatermarkGUI:
         
     def create_control_panel(self, parent):
         """创建左侧控制面板"""
-        control_frame = ttk.LabelFrame(parent, text="控制面板", padding="10")
-        control_frame.grid(row=0, column=0, rowspan=2, sticky='ewns', padx=(0, 10))
-        control_frame.configure(width=250)
+        # 创建包含滚动条的容器
+        control_container = ttk.Frame(parent)
+        control_container.grid(row=0, column=0, rowspan=2, sticky='ewns', padx=(0, 10))
+        control_container.configure(width=250)
+        control_container.rowconfigure(0, weight=1)
+        
+        # 创建Canvas和滚动条
+        control_canvas = tk.Canvas(control_container, highlightthickness=0)
+        control_scrollbar = ttk.Scrollbar(control_container, orient="vertical", command=control_canvas.yview)
+        control_scrollable_frame = ttk.Frame(control_canvas)
+        
+        # 配置滚动区域
+        control_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: control_canvas.configure(
+                scrollregion=control_canvas.bbox("all")
+            )
+        )
+        
+        # 在Canvas中创建窗口
+        control_canvas.create_window((0, 0), window=control_scrollable_frame, anchor="nw")
+        control_canvas.configure(yscrollcommand=control_scrollbar.set)
+        
+        # 绑定鼠标滚轮事件
+        def _on_mousewheel(event):
+            control_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def _bind_to_mousewheel(event):
+            control_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_from_mousewheel(event):
+            control_canvas.unbind_all("<MouseWheel>")
+        
+        control_canvas.bind('<Enter>', _bind_to_mousewheel)
+        control_canvas.bind('<Leave>', _unbind_from_mousewheel)
+        
+        # 布局Canvas和滚动条
+        control_canvas.grid(row=0, column=0, sticky='ewns')
+        control_scrollbar.grid(row=0, column=1, sticky='ns')
+        control_container.columnconfigure(0, weight=1)
         
         # 文件导入区域
-        import_frame = ttk.LabelFrame(control_frame, text="文件导入", padding="5")
+        import_frame = ttk.LabelFrame(control_scrollable_frame, text="文件导入", padding="5")
         import_frame.grid(row=0, column=0, sticky='ew', pady=(0, 10))
         
         # 导入按钮
@@ -210,12 +257,12 @@ class PhotoWatermarkGUI:
         import_frame.columnconfigure(0, weight=1)
         
         # 拖拽提示
-        drag_label = ttk.Label(control_frame, text="💡 提示：可直接拖拽图片或文件夹到右侧列表", 
+        drag_label = ttk.Label(control_scrollable_frame, text="💡 提示：可直接拖拽图片或文件夹到右侧列表", 
                               foreground="blue", font=("", 9))
         drag_label.grid(row=1, column=0, sticky='ew', pady=(0, 10))
         
         # 水印设置区域
-        settings_frame = ttk.LabelFrame(control_frame, text="水印设置", padding="5")
+        settings_frame = ttk.LabelFrame(control_scrollable_frame, text="水印设置", padding="5")
         settings_frame.grid(row=2, column=0, sticky='ew', pady=(0, 10))
         
         # 字体大小
@@ -342,7 +389,7 @@ class PhotoWatermarkGUI:
         self.watermark_canvas_item = None
         
         # 导出设置区域
-        export_frame = ttk.LabelFrame(control_frame, text="导出设置", padding="5")
+        export_frame = ttk.LabelFrame(control_scrollable_frame, text="导出设置", padding="5")
         export_frame.grid(row=3, column=0, sticky='ew', pady=(0, 10))
         
         # 输出目录
@@ -391,7 +438,7 @@ class PhotoWatermarkGUI:
         export_frame.columnconfigure(1, weight=1)
         
         # 图片尺寸调整区域
-        resize_frame = ttk.LabelFrame(control_frame, text="尺寸调整", padding="5")
+        resize_frame = ttk.LabelFrame(control_scrollable_frame, text="尺寸调整", padding="5")
         resize_frame.grid(row=4, column=0, sticky='ew', pady=(0, 10))
         
         # 缩放模式
@@ -431,7 +478,7 @@ class PhotoWatermarkGUI:
         resize_frame.columnconfigure(1, weight=1)
         
         # 图片水印设置区域
-        image_watermark_frame = ttk.LabelFrame(control_frame, text="图片水印设置", padding="5")
+        image_watermark_frame = ttk.LabelFrame(control_scrollable_frame, text="图片水印设置", padding="5")
         image_watermark_frame.grid(row=5, column=0, sticky='ew', pady=(0, 10))
         
         # 图片水印路径
@@ -470,16 +517,19 @@ class PhotoWatermarkGUI:
         
         image_watermark_frame.columnconfigure(1, weight=1)
         
+        # 配置管理区域
+        self.config_manager_ui = ConfigManagerUI(control_scrollable_frame, self.config_manager, self)
+        
         # 处理按钮区域
-        button_frame = ttk.Frame(control_frame)
-        button_frame.grid(row=6, column=0, sticky='ew', pady=(10, 0))
+        button_frame = ttk.Frame(control_scrollable_frame)
+        button_frame.grid(row=8, column=0, sticky='ew', pady=(10, 0))
         
         ttk.Button(button_frame, text="开始处理", 
                   command=self.start_processing, style="Accent.TButton").grid(row=0, column=0, sticky='ew')
         
         button_frame.columnconfigure(0, weight=1)
         
-        control_frame.columnconfigure(0, weight=1)
+        control_scrollable_frame.columnconfigure(0, weight=1)
         
     def create_image_list_area(self, parent):
         """创建右侧图片列表和预览区域"""
@@ -1329,6 +1379,55 @@ class PhotoWatermarkGUI:
         }
         
         return position_map.get(position_str.lower(), WatermarkPosition.BOTTOM_RIGHT)
+
+    def on_closing(self):
+        """窗口关闭时的处理"""
+        # 保存当前设置到上次会话
+        current_settings = self.get_current_settings()
+        if current_settings:
+            self.config_manager.save_last_session(current_settings)
+        
+        # 关闭窗口
+        self.root.destroy()
+    
+    def load_last_session(self):
+        """加载上次会话设置"""
+        last_settings = self.config_manager.load_last_session()
+        if last_settings:
+            try:
+                # 应用各种设置到GUI变量
+                self.font_size_var.set(str(last_settings.get('font_size', 36)))
+                self.color_var.set(str(last_settings.get('color', '#FFFFFF')))
+                self.position_var.set(str(last_settings.get('position', 'bottom_right')))
+                self.font_path_var.set(str(last_settings.get('font_path', '')))
+                self.opacity_var.set(float(last_settings.get('opacity', 1.0)))
+                self.output_format_var.set(str(last_settings.get('output_format', 'auto')))
+                self.output_dir_var.set(str(last_settings.get('output_dir', '')))
+                self.jpeg_quality_var.set(int(last_settings.get('jpeg_quality', 95)))
+                self.naming_rule_var.set(str(last_settings.get('naming_rule', 'suffix')))
+                self.custom_prefix_var.set(str(last_settings.get('custom_prefix', 'wm_')))
+                self.custom_suffix_var.set(str(last_settings.get('custom_suffix', '_watermarked')))
+                self.resize_mode_var.set(str(last_settings.get('resize_mode', 'none')))
+                self.resize_width_var.set(int(last_settings.get('resize_width', 800)))
+                self.resize_height_var.set(int(last_settings.get('resize_height', 600)))
+                self.resize_percent_var.set(float(last_settings.get('resize_percent', 1.0)))
+                self.custom_text_var.set(str(last_settings.get('custom_text', '')))
+                self.font_style_bold_var.set(bool(last_settings.get('font_style_bold', False)))
+                self.font_style_italic_var.set(bool(last_settings.get('font_style_italic', False)))
+                self.shadow_var.set(bool(last_settings.get('shadow', False)))
+                self.stroke_var.set(bool(last_settings.get('stroke', False)))
+                self.image_watermark_path_var.set(str(last_settings.get('image_watermark_path', '')))
+                self.image_watermark_scale_var.set(float(last_settings.get('image_watermark_scale', 1.0)))
+                self.rotation_var.set(float(last_settings.get('rotation', 0.0)))
+                
+                # 更新字体显示
+                font_path = str(last_settings.get('font_path', ''))
+                font_display_text = "默认字体" if not font_path else font_path
+                self.font_display_var.set(font_display_text)
+                
+                print("已加载上次会话设置")
+            except Exception as e:
+                print(f"加载上次会话设置失败: {e}")
 
 
 def main():

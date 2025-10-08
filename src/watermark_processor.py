@@ -135,32 +135,52 @@ class WatermarkProcessor:
                 if font_path and os.path.exists(font_path):
                     return ImageFont.truetype(font_path, font_size)
                 else:
-                    # 尝试使用系统默认字体
-                    try:
-                        # Windows系统尝试使用微软雅黑
-                        font_name = "msyh.ttc"
-                        if font_style.get('bold') and font_style.get('italic'):
-                            font_name = "msyhbd.ttc"  # 粗体+斜体
-                        elif font_style.get('bold'):
-                            font_name = "msyhbd.ttc"  # 粗体
-                        elif font_style.get('italic'):
-                            # Windows微软雅黑斜体可能需要其他处理
-                            pass
-                        return ImageFont.truetype(font_name, font_size)
-                    except OSError:
-                        try:
-                            # 尝试使用Arial字体
-                            font_name = "arial.ttf"
-                            if font_style.get('bold') and font_style.get('italic'):
-                                font_name = "arialbi.ttf"  # 粗体+斜体
-                            elif font_style.get('bold'):
-                                font_name = "arialbd.ttf"  # 粗体
-                            elif font_style.get('italic'):
-                                font_name = "ariali.ttf"   # 斜体
-                            return ImageFont.truetype(font_name, font_size)
-                        except OSError:
-                            # 如果都失败，使用PIL默认字体
-                            return ImageFont.load_default()
+                    # 尝试使用系统默认字体，根据样式选择合适的字体
+                    system_fonts = {
+                        # Windows系统字体
+                        'win': {
+                            'normal': 'msyh.ttc',
+                            'bold': 'msyhbd.ttc',
+                            'italic': 'msyhl.ttc',
+                            'bold_italic': 'msyhbd.ttc'
+                        },
+                        # macOS系统字体
+                        'mac': {
+                            'normal': 'Arial.ttf',
+                            'bold': 'Arial Bold.ttf',
+                            'italic': 'Arial Italic.ttf',
+                            'bold_italic': 'Arial Bold Italic.ttf'
+                        },
+                        # Linux系统字体
+                        'linux': {
+                            'normal': 'DejaVuSans.ttf',
+                            'bold': 'DejaVuSans-Bold.ttf',
+                            'italic': 'DejaVuSans-Oblique.ttf',
+                            'bold_italic': 'DejaVuSans-BoldOblique.ttf'
+                        }
+                    }
+                    
+                    # 根据操作系统选择字体
+                    import platform
+                    os_name = platform.system().lower()
+                    if 'windows' in os_name:
+                        font_family = system_fonts['win']
+                    elif 'darwin' in os_name:  # macOS
+                        font_family = system_fonts['mac']
+                    else:  # Linux or other
+                        font_family = system_fonts['linux']
+                    
+                    # 根据样式选择字体
+                    if font_style.get('bold') and font_style.get('italic'):
+                        font_name = font_family['bold_italic']
+                    elif font_style.get('bold'):
+                        font_name = font_family['bold']
+                    elif font_style.get('italic'):
+                        font_name = font_family['italic']
+                    else:
+                        font_name = font_family['normal']
+                    
+                    return ImageFont.truetype(font_name, font_size)
             else:
                 if font_path and os.path.exists(font_path):
                     return ImageFont.truetype(font_path, font_size)
@@ -333,7 +353,7 @@ class WatermarkProcessor:
             print(f"颜色格式错误，使用默认白色: {color}")
             rgb_color = (255, 255, 255)
         
-        # 如果需要旋转或透明度，创建带alpha通道的颜色
+        # 如果需要旋转、透明度或任何效果，创建带alpha通道的颜色
         if opacity < 1.0 or shadow or stroke or rotation != 0:
             alpha = int(255 * opacity) if opacity < 1.0 else 255
             rgba_color = rgb_color + (alpha,)
@@ -409,10 +429,32 @@ class WatermarkProcessor:
                 # 这里保持RGBA，让用户在保存时选择格式
                 pass
         else:
-            # 直接在图片上绘制文本
-            text_size = self.get_text_size(watermark_text, font)
-            text_position = self.calculate_position(image.size, text_size, position)
-            draw.text(text_position, watermark_text, font=font, fill=rgb_color)
+            # 直接在图片上绘制文本，但也要考虑透明度
+            if opacity < 1.0:
+                # 如果需要透明度但不需要其他效果，创建透明层
+                alpha = int(255 * opacity)
+                rgba_color = rgb_color + (alpha,)
+                
+                # 创建透明水印层
+                watermark_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
+                watermark_draw = ImageDraw.Draw(watermark_layer)
+                
+                # 计算文本位置
+                text_size = self.get_text_size(watermark_text, font)
+                text_position = self.calculate_position(image.size, text_size, position)
+                
+                # 在透明层上绘制文本
+                watermark_draw.text(text_position, watermark_text, font=font, fill=rgba_color)
+                
+                # 将透明层合并到原图
+                if not preserve_alpha:
+                    image = image.convert('RGBA')
+                image = Image.alpha_composite(image, watermark_layer)
+            else:
+                # 直接在图片上绘制文本
+                text_size = self.get_text_size(watermark_text, font)
+                text_position = self.calculate_position(image.size, text_size, position)
+                draw.text(text_position, watermark_text, font=font, fill=rgb_color)
         
         return image
     

@@ -21,6 +21,7 @@
 - **文本水印**：自定义文本、字体样式（粗体、斜体）、阴影和描边效果
 - **图片水印**：支持PNG透明通道、缩放和透明度调节
 - **旋转功能**：支持水印任意角度旋转（-180°到180°）
+- **配置管理**：支持保存、加载和管理水印设置模板
 
 ### 📁 **强大的文件处理**
 - **拖拽导入**：支持图片和文件夹的直接拖拽
@@ -78,6 +79,7 @@ python gui_app.py
 - 📤 完整的导出控制选项
 - 🎨 颜色调色板选择器：点击🎨按钮打开颜色选择器，直观选择水印颜色
 - 🔠 字体选择器：可选择系统安装的字体、字号、粗体、斜体
+- 📋 配置模板管理：保存、加载和管理水印设置模板
 
 #### 💻 **命令行界面**
 
@@ -125,7 +127,7 @@ python main.py test_photos \
   --color "#0000FF"
 ```
 
-字体选择用法：
+字体选择和样式用法：
 ```bash
 # 使用系统字体
 python main.py test_photos \
@@ -140,6 +142,23 @@ python main.py test_photos \
   --custom-text "特殊字体" \
   --font-path "/path/to/custom_font.ttf" \
   --font-size 36
+
+# 使用斜体和透明度
+python main.py test_photos \
+  --custom-text "斜体半透明" \
+  --italic \
+  --opacity 0.5 \
+  --font-size 48 \
+  --color "#FF0000"
+
+# 粗体+斜体+阴影+透明度组合
+python main.py test_photos \
+  --custom-text "组合效果" \
+  --bold \
+  --italic \
+  --shadow \
+  --opacity 0.7 \
+  --font-size 40
 ```
 
 旋转功能用法：
@@ -184,6 +203,11 @@ python main.py test_photos \
 | `--italic` | `-i` | False | 使用斜体字体 |
 | `--shadow` | `-sh` | False | 添加阴影效果 |
 | `--stroke` | `-st` | False | 添加描边效果 |
+
+### 透明度控制
+| 参数 | 简写 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--opacity` | `-o` | 1.0 | 水印透明度（0.0-1.0，0.0为完全透明，1.0为完全不透明） |
 
 ### 图片水印参数
 | 参数 | 简写 | 默认值 | 说明 |
@@ -233,7 +257,8 @@ NJUSE25FALL-Photo-Watermark/
 ├── src/
 │   ├── __init__.py
 │   ├── exif_reader.py         # EXIF信息读取模块（支持多格式）
-│   └── watermark_processor.py # 水印处理核心模块
+│   ├── watermark_processor.py # 水印处理核心模块
+│   └── config_manager.py      # 配置管理模块（模板保存和加载）
 ├── examples/                  # 示例图片目录
 ├── main.py                   # 命令行主程序入口
 ├── gui_app.py               # GUI图形界面主程序
@@ -378,7 +403,12 @@ python test_custom_watermark.py
   - `tkinterdnd2>=0.3.0` - GUI拖拽功能
 
 ### 🆕 版本更新记录
-**v2.1.0** (当前版本)
+**v2.2.0** (当前版本)
+- ✅ 新增配置管理功能，支持模板保存、加载和管理
+- ✅ 支持会话设置自动保存和加载
+- ✅ 完善GUI界面，添加模板管理面板
+
+**v2.1.0**
 - ✅ 新增图片水印功能，支持PNG透明通道
 - ✅ 新增自定义文本水印，支持字体样式（粗体、斜体）
 - ✅ 新增文本效果（阴影、描边）
